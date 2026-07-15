@@ -1,11 +1,14 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
+from app.chat_routes import router as chat_router
 
 app = FastAPI(
     title="IDBI IA Service",
     version="1.0.0"
 )
+
+app.include_router(chat_router)
 
 class AnalyzeRequest(BaseModel):
     evaluationId: int
@@ -86,4 +89,18 @@ def analyze(request: AnalyzeRequest):
             "Configurar portal cautivo para WiFi de clientes.",
             "Monitoreo proactivo con alertas 24/7."
         ]
+    }
+
+@app.get("/")
+def root():
+    return {
+        "status": "OK",
+        "service": "IDBI FastAPI"
+    }
+
+
+@app.get("/health")
+def health():
+    return {
+        "status": "OK"
     }
