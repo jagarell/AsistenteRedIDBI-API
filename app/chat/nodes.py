@@ -30,6 +30,9 @@ class Node(BaseModel):
     unit: Optional[str] = None
     required: bool = True
     help_text: Optional[str] = None
+    # Nodos que el motor resuelve solo (ej. geocodificar el local a partir de
+    # nombre+dirección) sin mostrarle una pregunta al técnico.
+    auto: bool = False
 
 
 # Flujo de 20 nodos. El orden define la secuencia de la conversación.
@@ -45,9 +48,10 @@ NODES: List[Node] = [
          question="¿Cuál es la dirección del local?",
          input_type=InputType.TEXT),
     Node(key="location",
-         question="Registra las coordenadas GPS del local.",
+         question="Coordenadas GPS del local (calculadas automáticamente a partir del nombre y la dirección).",
          input_type=InputType.LOCATION,
-         help_text="Si no hay señal GPS, ingresa la ubicación manualmente."),
+         auto=True,
+         required=False),
     Node(key="internet_provider",
          question="¿Qué proveedor de internet utiliza el local?",
          input_type=InputType.TEXT),
@@ -65,6 +69,17 @@ NODES: List[Node] = [
     Node(key="router_location",
          question="¿Dónde está instalado el router principal?",
          input_type=InputType.TEXT),
+    Node(key="establishment_area_m2",
+         question="¿Cuántos metros cuadrados tiene el local?",
+         input_type=InputType.NUMBER,
+         unit="m²"),
+    Node(key="router_to_farthest_distance_m",
+         question="¿Qué distancia aproximada hay entre el router y el punto de red más alejado (cocina, terraza, etc.)?",
+         input_type=InputType.NUMBER,
+         unit="metros",
+         help_text="El cableado de cobre (TIA/EIA-568) tiene un límite de 100m; "
+                    "más allá de eso la señal se degrada y hace falta fibra o "
+                    "un rack intermedio."),
     Node(key="has_switches",
          question="¿El local cuenta con switches de red?",
          input_type=InputType.YES_NO),
@@ -96,6 +111,13 @@ NODES: List[Node] = [
          input_type=InputType.NUMBER,
          unit="equipos",
          required=False),
+    Node(key="wall_type",
+         question="¿De qué material son las paredes principales del local?",
+         input_type=InputType.CHOICE,
+         options=["Drywall/madera", "Concreto/ladrillo", "Vidrio/mixto"],
+         help_text="El material de las paredes afecta el alcance real del WiFi: "
+                    "el concreto/ladrillo atenúa mucho más la señal que el "
+                    "drywall, madera o vidrio."),
     Node(key="wifi_zones",
          question="¿En qué áreas necesita cobertura WiFi?",
          input_type=InputType.MULTI_SELECT,
@@ -110,8 +132,10 @@ NODES: List[Node] = [
          options=["Red de invitados", "VLAN", "Firewall", "Enlace de respaldo"],
          required=False),
     Node(key="photos",
-         question="Adjunta fotos de las zonas críticas (caja, cocina, barra, rack).",
-         input_type=InputType.PHOTO,
+         question="Al terminar esta evaluación pasarás a capturar evidencia "
+                   "fotográfica de las zonas críticas (caja, cocina, barra, rack). "
+                   "¿Confirmas que continuarás con esa captura?",
+         input_type=InputType.YES_NO,
          required=False),
 ]
 

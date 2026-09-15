@@ -13,6 +13,7 @@ from app.chat.config import settings
 from app.chat.nodes import NODES, TOTAL_NODES, node_at
 from app.chat.proposal import generate_proposal as rule_based_proposal
 from app.chat.schemas import ChatAnswerRequest, ChatProposal, ChatResponse
+from app.geocoding import geocode
 
 logger = logging.getLogger("idbi.chat")
 
@@ -123,6 +124,14 @@ class ChatEngine:
             updated[current.key] = request.answer.strip()
 
         next_step = request.currentStep + 1
+
+        # Nodos "auto" (ej. coordenadas GPS): se resuelven solos, sin
+        # preguntarle nada al técnico, encadenando hasta el próximo nodo real.
+        while next_step < TOTAL_NODES and NODES[next_step].auto:
+            auto_node = NODES[next_step]
+            updated[auto_node.key] = self._resolve_auto(auto_node.key, updated)
+            next_step += 1
+
         answered = len(updated)
         progress = int(answered / TOTAL_NODES * 100)
 
@@ -143,6 +152,11 @@ class ChatEngine:
             completed=False,
             answers=updated,
         )
+
+    def _resolve_auto(self, key: str, answers: Dict[str, str]) -> str:
+        if key == "location":
+            return geocode(answers.get("establishment_name", ""), answers.get("address"))
+        return ""
 
     def _completed(self, evaluation_id: str, answers: Dict[str, str]) -> ChatResponse:
         proposal = self._generate(answers)
