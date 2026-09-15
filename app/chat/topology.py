@@ -4,6 +4,7 @@ Genera un diagrama jerárquico (Internet → Router → Switch → equipos) con 
 conexiones clasificadas por tipo (Cable de red / WiFi / USB-Bluetooth), tal como
 exige el diseño (HU11). Es determinista: mismas respuestas ⇒ misma topología.
 """
+import math
 from typing import Dict, List
 
 from app.chat.schemas import (
@@ -13,6 +14,25 @@ from app.chat.schemas import (
     TopologyLink,
     TopologyNode,
 )
+
+# Cobertura útil estimada de un access point indoor, en m² (valores estándar
+# de industria, ajustables): el concreto/ladrillo atenúa la señal WiFi mucho
+# más que el drywall, la madera o el vidrio.
+AP_COVERAGE_M2_OPEN = 150
+AP_COVERAGE_M2_CONCRETE = 80
+
+
+def ap_coverage_m2(wall_type: str) -> int:
+    """Cobertura útil (m²) de un access point según el material de las paredes."""
+    return AP_COVERAGE_M2_CONCRETE if "concreto" in (wall_type or "").lower() else AP_COVERAGE_M2_OPEN
+
+
+def ap_count_for_zone(area_per_zone: float, wall_type: str) -> int:
+    """Cuántos access points hacen falta para cubrir una zona de cierta área."""
+    if not area_per_zone:
+        return 1
+    coverage = ap_coverage_m2(wall_type)
+    return max(1, math.ceil(area_per_zone / coverage))
 
 
 def _to_int(value: str, default: int = 0) -> int:
@@ -93,14 +113,24 @@ def build_topology(answers: Dict[str, str]) -> Topology:
         cid = add_node(f"computer_{i}", f"PC {i}", "computer", endpoint_level)
         add_link(parent_id, cid, ConnectionType.CABLE_RED)
 
-    # Access Points por zona WiFi: backhaul cableado + clientes por WiFi
+    # Access Points por zona WiFi: backhaul cableado + clientes por WiFi.
+    # Si el área por zona excede la cobertura útil de un AP (según el material
+    # de las paredes), se agregan APs adicionales para esa zona.
     zones = _split_multi(answers.get("wifi_zones", ""))
     if zones:
         clients_id = add_node("wifi_clients", "Dispositivos WiFi", "computer", endpoint_level + 1)
-        for idx, zone in enumerate(zones, start=1):
-            ap_id = add_node(f"ap_{idx}", f"Access Point {zone}", "access_point", endpoint_level)
-            add_link(parent_id, ap_id, ConnectionType.CABLE_RED)      # backhaul cableado
-            add_link(ap_id, clients_id, ConnectionType.WIFI)          # cobertura inalámbrica
+        area = _to_int(answers.get("establishment_area_m2", "0"))
+        wall_type = answers.get("wall_type", "")
+        area_per_zone = area / len(zones) if area else 0
+        aps_per_zone = ap_count_for_zone(area_per_zone, wall_type)
+        ap_counter = 0
+        for zone in zones:
+            for i in range(aps_per_zone):
+                ap_counter += 1
+                label = f"Access Point {zone}" if aps_per_zone == 1 else f"Access Point {zone} ({i + 1})"
+                ap_id = add_node(f"ap_{ap_counter}", label, "access_point", endpoint_level)
+                add_link(parent_id, ap_id, ConnectionType.CABLE_RED)      # backhaul cableado
+                add_link(ap_id, clients_id, ConnectionType.WIFI)          # cobertura inalámbrica
 
     return Topology(nodes=nodes, links=links)
 

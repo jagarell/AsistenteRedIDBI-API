@@ -56,11 +56,16 @@ class EquipmentRecommendation(BaseModel):
     name: str
     description: str
     quantity: int
+    # Pendiente de catálogo real de precios de IDBI — mismo patrón que
+    # OPENAI_API_KEY/RUC_VALIDATION: el campo existe pero se manda null hasta
+    # que exista un catálogo real; nunca se inventa un precio.
+    unitPrice: float | None = None
 
 
 class ChatProposal(BaseModel):
     summary: str
-    recommendations: List[str]
+    asIsFindings: List[str] = []          # diagnóstico del estado actual (AS-IS)
+    recommendations: List[str]            # propuesta objetivo (TO-BE)
     equipment: List[EquipmentRecommendation]
     topologyText: str                     # se conserva por compatibilidad
     topology: Optional[Topology] = None   # topología estructurada (nuevo)
