@@ -1,10 +1,14 @@
-from typing import List
+from typing import Dict
 
 from fastapi import FastAPI
+from app.chat.nodes import NODES
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from app.analysis import AnalysisResult, compute_analysis
+from app.chat.checklist import EvidenceChecklistSeed, build_evidence_checklist
 from app.chat.router import router as chat_router
+from app.vision import PhotoAnalyzeRequest, PhotoAnalyzeResult, analyze_photo
 
 app = FastAPI(
     title="IDBI IA Service",
@@ -26,23 +30,10 @@ class AnalyzeRequest(BaseModel):
     evaluationId: int
     restaurantName: str
     capturedPhotos: int = 0
-
-
-class AnalysisItem(BaseModel):
-    title: str
-    status: str
-    score: int
-    description: str
-    color: str
-
-
-class AnalyzeResponse(BaseModel):
-    globalScore: int
-    evaluatedAreas: int
-    attentionRequired: int
-    results: List[AnalysisItem]
-    summary: str
-    recommendations: List[str]
+    answers: Dict[str, str] = {}
+    # Hallazgos de visión por foto de evidencia, ej.
+    # {"router": {"brand": "TP-Link", "model": "Archer C6"}}. Ver app/vision.py.
+    detectedEquipment: Dict[str, dict] = {}
 
 
 @app.get("/")
@@ -55,43 +46,32 @@ def health():
     return {"status": "OK", "message": "IA service ready"}
 
 
-@app.post("/analyze", response_model=AnalyzeResponse)
+@app.post("/analyze", response_model=AnalysisResult)
 def analyze(request: AnalyzeRequest):
-    # NOTA: el diagnóstico por área sigue siendo un ejemplo estructurado; el
-    # análisis real (AnalysisEngine) se implementará sobre estos datos. Al menos
-    # el resumen usa el nombre real del establecimiento recibido del gateway.
-    results = [
-        AnalysisItem(title="Conectividad de Red", status="Buena", score=78,
-                     description="Enlace principal estable. Se recomienda redundancia.",
-                     color="blue"),
-        AnalysisItem(title="Infraestructura Física", status="Regular", score=62,
-                     description="Cableado estructurado incompleto en cocina.",
-                     color="orange"),
-        AnalysisItem(title="Equipamiento", status="Óptimo", score=85,
-                     description="Hardware en buen estado.",
-                     color="green"),
-        AnalysisItem(title="Cobertura WiFi", status="Deficiente", score=55,
-                     description="Puntos ciegos en área de cocina y terraza.",
-                     color="red"),
-    ]
-    global_score = round(sum(r.score for r in results) / len(results))
-    attention = sum(1 for r in results if r.score < 65)
-
-    return AnalyzeResponse(
-        globalScore=global_score,
-        evaluatedAreas=len(results),
-        attentionRequired=attention,
-        results=results,
-        summary=(
-            f"El análisis de {request.restaurantName} indica oportunidades de "
-            "mejora en cobertura WiFi y cableado estructurado."
-        ),
-        recommendations=[
-            "Implementar segmentación VLAN: POS, WiFi clientes y gestión.",
-            "Configurar QoS para priorizar tráfico crítico.",
-            "Instalar 2 APs adicionales en zona de cocina.",
-            "Implementar redundancia de enlace.",
-            "Configurar portal cautivo para WiFi de clientes.",
-            "Monitoreo proactivo con alertas 24/7.",
-        ],
+    return compute_analysis(
+        request.answers,
+        request.restaurantName,
+        detected_equipment=request.detectedEquipment,
     )
+
+
+@app.post("/analyze-photo", response_model=PhotoAnalyzeResult)
+def analyze_photo_endpoint(request: PhotoAnalyzeRequest):
+    return analyze_photo(request.category, request.imageBase64)
+
+
+class EvidenceChecklistSeedRequest(BaseModel):
+    answers: Dict[str, str] = {}
+
+
+@app.post("/evidence-checklist/seed", response_model=EvidenceChecklistSeed)
+def evidence_checklist_seed(request: EvidenceChecklistSeedRequest):
+    return build_evidence_checklist(request.answers)
+
+
+@app.get("/chat/nodes")
+def chat_nodes():
+    """Metadata liviana (clave + pregunta) de los nodos del chat, para que el
+    gateway pueda mostrar las respuestas guardadas con su texto de pregunta
+    sin duplicar las 23 preguntas en Java."""
+    return [{"key": node.key, "question": node.question} for node in NODES if not node.auto]
