@@ -79,6 +79,11 @@ class ChatResponse(BaseModel):
     currentQuestion: Optional[str]
     currentInputType: Optional[InputType] = None
     currentOptions: Optional[List[str]] = None
+    # Unidad de la pregunta actual (ej. "metros", "Mbps") — antes vivía en
+    # Node.unit pero nunca se mandaba al cliente, así que el técnico no
+    # tenía forma de saber en qué unidad responder salvo que la pregunta
+    # la mencionara a mano en el texto (inconsistente entre preguntas).
+    currentUnit: Optional[str] = None
     answeredQuestions: int
     totalQuestions: int
     progressPercent: int
