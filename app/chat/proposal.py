@@ -5,6 +5,7 @@ resuelve en engine.py; aquí vive la lógica base que también sirve de fallback
 """
 from typing import Dict, List, Optional
 
+from app.chat.answers import is_yes, split_multi, to_int
 from app.chat.schemas import ChatProposal, EquipmentRecommendation
 from app.chat.topology import ap_coverage_m2, ap_count_for_zone, build_topology, topology_to_text
 
@@ -27,17 +28,13 @@ AP_POE_W = 15
 REDUNDANCY_POS_THRESHOLD = 3  # a partir de aquí, un solo enlace es un riesgo real
 
 
-def _to_int(value: str, default: int = 0) -> int:
-    digits = "".join(ch for ch in str(value or "") if ch.isdigit())
-    return int(digits) if digits else default
+def _has_service(services: List[str], keyword: str) -> bool:
+    """`services` ya viene separado en lista real (ver split_multi) — nunca
+    comparar el string crudo de MULTI_SELECT con `in`, es el mismo bug que
+    tenía `services` antes de esta consolidación."""
+    return any(keyword in s.lower() for s in services)
 
 
-def _is_yes(value: str) -> bool:
-    return str(value or "").strip().lower() in {"sí", "si", "yes", "true", "1"}
-
-
-def _split_zones(value: str) -> List[str]:
-    return [z.strip() for z in (value or "").split(",") if z.strip()]
 
 
 def _compute_as_is(
@@ -52,14 +49,14 @@ def _compute_as_is(
     autorreportado en el chat en vez de confiar solo en el texto del técnico."""
     findings: List[str] = []
 
-    pos_count = _to_int(answers.get("pos_count", "0"))
-    camera_count = _to_int(answers.get("camera_count", "0"))
-    computer_count = _to_int(answers.get("computer_count", "0"))
-    zones = _split_zones(answers.get("wifi_zones", ""))
+    pos_count = to_int(answers.get("pos_count", "0"))
+    camera_count = to_int(answers.get("camera_count", "0"))
+    computer_count = to_int(answers.get("computer_count", "0"))
+    zones = split_multi(answers.get("wifi_zones", ""))
     wifi_clients = max(computer_count, len(zones) * 3)
 
     # --- Ancho de banda: demanda estimada vs plan contratado ---
-    speed = _to_int(answers.get("internet_speed", "0"))
+    speed = to_int(answers.get("internet_speed", "0"))
     if speed:
         demand = (
             pos_count * BANDWIDTH_MBPS_PER_POS
@@ -78,7 +75,7 @@ def _compute_as_is(
             )
 
     # --- Distancia de cableado vs límite de cobre ---
-    distance = _to_int(answers.get("router_to_farthest_distance_m", "0"))
+    distance = to_int(answers.get("router_to_farthest_distance_m", "0"))
     if distance >= MAX_CABLE_RUN_M:
         findings.append(
             f"El punto más alejado está a {distance}m del router, superando "
@@ -92,7 +89,7 @@ def _compute_as_is(
         )
 
     # --- Cobertura WiFi vs área y material de paredes ---
-    area = _to_int(answers.get("establishment_area_m2", "0"))
+    area = to_int(answers.get("establishment_area_m2", "0"))
     wall_type = answers.get("wall_type", "")
     if area and zones:
         coverage = ap_coverage_m2(wall_type)
@@ -107,7 +104,7 @@ def _compute_as_is(
             )
 
     # --- Switch / cableado estructurado ---
-    has_switch = _is_yes(answers.get("has_switches", "")) or _to_int(answers.get("switch_ports", "0")) > 0
+    has_switch = is_yes(answers.get("has_switches", "")) or to_int(answers.get("switch_ports", "0")) > 0
     if not has_switch:
         findings.append(
             "No hay switch administrable: las conexiones cableadas dependen "
@@ -125,14 +122,14 @@ def _compute_as_is(
         )
 
     # --- Tomacorrientes junto a cada punto de red ---
-    if not _is_yes(answers.get("power_outlets", "")):
+    if not is_yes(answers.get("power_outlets", "")):
         findings.append(
             "No hay tomacorrientes adyacentes a cada punto de red (norma TIA/EIA-568)."
         )
 
     # --- Redundancia de enlace ---
-    services = (answers.get("services", "") or "").lower()
-    if pos_count >= REDUNDANCY_POS_THRESHOLD and "respaldo" not in services:
+    services = split_multi(answers.get("services", ""))
+    if pos_count >= REDUNDANCY_POS_THRESHOLD and not _has_service(services, "respaldo"):
         findings.append(
             f"El negocio depende de {pos_count} POS sobre un único enlace de "
             "internet, sin respaldo ante una caída del proveedor."
@@ -169,7 +166,7 @@ def _compute_as_is(
 def _compute_score(answers: Dict[str, str]) -> int:
     """Puntaje 0-100 de la infraestructura actual (heurístico)."""
     score = 50
-    speed = _to_int(answers.get("internet_speed", "0"))
+    speed = to_int(answers.get("internet_speed", "0"))
     if speed >= 200:
         score += 20
     elif speed >= 100:
@@ -177,19 +174,19 @@ def _compute_score(answers: Dict[str, str]) -> int:
     elif speed >= 50:
         score += 6
 
-    if _is_yes(answers.get("has_switches", "")) or _to_int(answers.get("switch_ports", "0")) > 0:
+    if is_yes(answers.get("has_switches", "")) or to_int(answers.get("switch_ports", "0")) > 0:
         score += 10
-    if _is_yes(answers.get("power_outlets", "")):
+    if is_yes(answers.get("power_outlets", "")):
         score += 8
     else:
         score -= 8
 
-    services = (answers.get("services", "") or "").lower()
-    if "firewall" in services:
+    services = split_multi(answers.get("services", ""))
+    if _has_service(services, "firewall"):
         score += 6
-    if "vlan" in services:
+    if _has_service(services, "vlan"):
         score += 4
-    if "respaldo" in services:
+    if _has_service(services, "respaldo"):
         score += 4
 
     return max(0, min(100, score))
@@ -202,14 +199,14 @@ def generate_proposal(
     recommendations: List[str] = []
     equipment: List[EquipmentRecommendation] = []
 
-    speed = _to_int(answers.get("internet_speed", "0"))
+    speed = to_int(answers.get("internet_speed", "0"))
     if speed and speed < 100:
         recommendations.append(
             f"La velocidad contratada ({speed} Mbps) es baja para un local con "
             "POS y WiFi; evaluar un plan de mayor ancho de banda."
         )
 
-    has_switch = _is_yes(answers.get("has_switches", "")) or _to_int(answers.get("switch_ports", "0")) > 0
+    has_switch = is_yes(answers.get("has_switches", "")) or to_int(answers.get("switch_ports", "0")) > 0
     if not has_switch:
         recommendations.append(
             "Centralizar las conexiones cableadas en un switch administrable."
@@ -220,9 +217,9 @@ def generate_proposal(
             quantity=1,
         ))
 
-    zones = _split_zones(answers.get("wifi_zones", ""))
+    zones = split_multi(answers.get("wifi_zones", ""))
     if zones:
-        area = _to_int(answers.get("establishment_area_m2", "0"))
+        area = to_int(answers.get("establishment_area_m2", "0"))
         wall_type = answers.get("wall_type", "")
         area_per_zone = area / len(zones) if area else 0
         aps_per_zone = ap_count_for_zone(area_per_zone, wall_type)
@@ -236,7 +233,7 @@ def generate_proposal(
             quantity=aps_per_zone * len(zones),
         ))
 
-    if _to_int(answers.get("camera_count", "0")) > 0:
+    if to_int(answers.get("camera_count", "0")) > 0:
         recommendations.append(
             "Usar un switch PoE para alimentar cámaras y access points por el mismo cable."
         )
@@ -246,20 +243,20 @@ def generate_proposal(
             quantity=1,
         ))
 
-    if _to_int(answers.get("pos_count", "0")) > 0:
+    if to_int(answers.get("pos_count", "0")) > 0:
         recommendations.append(
             "Separar el tráfico de POS/cajas en una VLAN exclusiva."
         )
 
-    services = (answers.get("services", "") or "").lower()
-    if "invitados" in services:
+    services = split_multi(answers.get("services", ""))
+    if _has_service(services, "invitados"):
         recommendations.append("Crear una red WiFi de invitados aislada de la red administrativa.")
-    if "firewall" in services or "vlan" in services:
+    if _has_service(services, "firewall") or _has_service(services, "vlan"):
         recommendations.append("Implementar firewall y segmentación por VLAN.")
-    if "respaldo" in services:
+    if _has_service(services, "respaldo"):
         recommendations.append("Implementar un segundo enlace de internet con failover automático.")
 
-    if not _is_yes(answers.get("power_outlets", "")):
+    if not is_yes(answers.get("power_outlets", "")):
         recommendations.append(
             "Habilitar tomacorrientes adyacentes a cada punto de red (norma TIA/EIA-568)."
         )

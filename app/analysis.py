@@ -1,5 +1,5 @@
 """Análisis IA de infraestructura a partir de las respuestas del chat técnico
-(23 nodos). Reusa el MISMO motor de reglas que app.chat.proposal (AS-IS/TO-BE)
+(ver TOTAL_NODES en app.chat.nodes). Reusa el MISMO motor de reglas que app.chat.proposal (AS-IS/TO-BE)
 para el score/diagnóstico/recomendaciones — es una sola fuente de verdad con
 la propuesta del chat — y le agrega el desglose por 4 áreas que muestra la
 pantalla "Análisis IA" del app (Conectividad, Infraestructura Física,
@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
+from app.chat.answers import is_yes, split_multi, to_int
 from app.chat.proposal import generate_proposal
 
 
@@ -30,15 +31,6 @@ class AnalysisResult(BaseModel):
     recommendations: List[str]
 
 
-def _to_int(value: str, default: int = 0) -> int:
-    digits = "".join(ch for ch in str(value or "") if ch.isdigit())
-    return int(digits) if digits else default
-
-
-def _is_yes(value: str) -> bool:
-    return str(value or "").strip().lower() in {"sí", "si", "yes", "true", "1"}
-
-
 def _clamp(score: int) -> int:
     return max(0, min(100, score))
 
@@ -54,7 +46,7 @@ def _status_and_color(score: int) -> tuple[str, str]:
 
 
 def _connectivity_item(answers: Dict[str, str]) -> AnalysisItem:
-    speed = _to_int(answers.get("internet_speed", "0"))
+    speed = to_int(answers.get("internet_speed", "0"))
     conn_type = (answers.get("connection_type", "") or "").strip()
 
     score = 50
@@ -84,8 +76,8 @@ def _connectivity_item(answers: Dict[str, str]) -> AnalysisItem:
 
 
 def _physical_infra_item(answers: Dict[str, str]) -> AnalysisItem:
-    has_switch = _is_yes(answers.get("has_switches", "")) or _to_int(answers.get("switch_ports", "0")) > 0
-    has_outlets = _is_yes(answers.get("power_outlets", ""))
+    has_switch = is_yes(answers.get("has_switches", "")) or to_int(answers.get("switch_ports", "0")) > 0
+    has_outlets = is_yes(answers.get("power_outlets", ""))
     router = (answers.get("router_model", "") or "").strip()
 
     score = 50
@@ -103,9 +95,9 @@ def _physical_infra_item(answers: Dict[str, str]) -> AnalysisItem:
 
 
 def _equipment_item(answers: Dict[str, str]) -> AnalysisItem:
-    ports = _to_int(answers.get("switch_ports", "0"))
+    ports = to_int(answers.get("switch_ports", "0"))
     devices = sum(
-        _to_int(answers.get(key, "0"))
+        to_int(answers.get(key, "0"))
         for key in ("pos_count", "printer_count", "camera_count", "computer_count")
     )
 
@@ -129,7 +121,7 @@ def _equipment_item(answers: Dict[str, str]) -> AnalysisItem:
 
 
 def _wifi_item(answers: Dict[str, str]) -> AnalysisItem:
-    zones = [z.strip() for z in (answers.get("wifi_zones", "") or "").split(",") if z.strip()]
+    zones = split_multi(answers.get("wifi_zones", ""))
     wall_type = (answers.get("wall_type", "") or "").strip()
 
     score = _clamp(35 + len(zones) * 13)

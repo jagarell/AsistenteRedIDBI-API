@@ -8,6 +8,8 @@ from typing import Dict, List
 
 from pydantic import BaseModel
 
+from app.chat.answers import is_yes, to_int
+
 
 class ChecklistArea(BaseModel):
     name: str
@@ -21,15 +23,6 @@ class ChecklistEquipment(BaseModel):
 class EvidenceChecklistSeed(BaseModel):
     areas: List[ChecklistArea]
     equipment: List[ChecklistEquipment]
-
-
-def _to_int(value: str, default: int = 0) -> int:
-    digits = "".join(ch for ch in str(value or "") if ch.isdigit())
-    return int(digits) if digits else default
-
-
-def _is_yes(value: str) -> bool:
-    return str(value or "").strip().lower() in {"sí", "si", "yes", "true", "1"}
 
 
 def build_evidence_checklist(answers: Dict[str, str]) -> EvidenceChecklistSeed:
@@ -48,28 +41,28 @@ def build_evidence_checklist(answers: Dict[str, str]) -> EvidenceChecklistSeed:
         ChecklistEquipment(equipmentType="router", label=answers.get("router_model") or "Router")
     ]
 
-    has_switch = _is_yes(answers.get("has_switches", "")) or _to_int(answers.get("switch_ports", "0")) > 0
+    has_switch = is_yes(answers.get("has_switches", "")) or to_int(answers.get("switch_ports", "0")) > 0
     if has_switch:
         equipment.append(ChecklistEquipment(equipmentType="switch", label="Switch"))
 
-    if _to_int(answers.get("pos_count", "0")) > 0:
+    if to_int(answers.get("pos_count", "0")) > 0:
         equipment.append(ChecklistEquipment(
-            equipmentType="pos", label=f"POS (x{_to_int(answers.get('pos_count', '0'))})"
+            equipmentType="pos", label=f"POS (x{to_int(answers.get('pos_count', '0'))})"
         ))
 
-    if _to_int(answers.get("printer_count", "0")) > 0:
+    if to_int(answers.get("printer_count", "0")) > 0:
         equipment.append(ChecklistEquipment(
-            equipmentType="printer", label=f"Impresora/ticketera (x{_to_int(answers.get('printer_count', '0'))})"
+            equipmentType="printer", label=f"Impresora/ticketera (x{to_int(answers.get('printer_count', '0'))})"
         ))
 
-    if _to_int(answers.get("camera_count", "0")) > 0:
+    if to_int(answers.get("camera_count", "0")) > 0:
         equipment.append(ChecklistEquipment(
-            equipmentType="camera", label=f"Cámara de seguridad (x{_to_int(answers.get('camera_count', '0'))})"
+            equipmentType="camera", label=f"Cámara de seguridad (x{to_int(answers.get('camera_count', '0'))})"
         ))
 
-    if _to_int(answers.get("computer_count", "0")) > 0:
+    if to_int(answers.get("computer_count", "0")) > 0:
         equipment.append(ChecklistEquipment(
-            equipmentType="computer", label=f"Computadora/laptop (x{_to_int(answers.get('computer_count', '0'))})"
+            equipmentType="computer", label=f"Computadora/laptop (x{to_int(answers.get('computer_count', '0'))})"
         ))
 
     if zones:
