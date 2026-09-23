@@ -9,10 +9,13 @@ app.chat.proposal pueda contrastarlos contra lo autorreportado en el chat
 (ver `detected_equipment` en generate_proposal/compute_analysis).
 """
 import json
+import logging
 
 from pydantic import BaseModel
 
 from app.chat.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class PhotoAnalyzeRequest(BaseModel):
@@ -59,16 +62,27 @@ _EQUIPMENT_CATEGORIES = {
 _MAX_IMAGE_BASE64_CHARS = 20_000_000
 
 
-def _fallback(message: str) -> PhotoAnalyzeResult:
-    return PhotoAnalyzeResult(description=message)
+def _fallback(category: str, reason: str) -> PhotoAnalyzeResult:
+    """Análisis por reglas fijas (sin IA) cuando OpenAI no está disponible
+    (sin key, sin crédito, caído, rate-limited, etc.) — nunca deja al técnico
+    sin ninguna indicación: le dice qué se esperaba ver en la foto y qué
+    revisar a mano, en vez de solo un mensaje de error técnico."""
+    label = _CATEGORY_LABELS.get(category, "un elemento de infraestructura de red")
+    if category in _EQUIPMENT_CATEGORIES:
+        instruction = f"Revisa manualmente que la foto muestre {label} y anota marca, modelo y estado físico."
+    else:
+        instruction = f"Revisa manualmente que la foto muestre {label} con buena iluminación y foco."
+    return PhotoAnalyzeResult(
+        description=f"Análisis automático no disponible ({reason}). {instruction}"
+    )
 
 
 def analyze_photo(category: str, image_base64: str) -> PhotoAnalyzeResult:
     if not settings.openai_api_key:
-        return _fallback("Análisis de IA no configurado (falta OPENAI_API_KEY).")
+        return _fallback(category, "IA no configurada")
 
     if len(image_base64) > _MAX_IMAGE_BASE64_CHARS:
-        return _fallback("La foto es demasiado pesada para analizarla.")
+        return _fallback(category, "la foto es demasiado pesada")
 
     label = _CATEGORY_LABELS.get(category, "un elemento de infraestructura de red")
     is_equipment = category in _EQUIPMENT_CATEGORIES
@@ -133,4 +147,8 @@ def analyze_photo(category: str, image_base64: str) -> PhotoAnalyzeResult:
             model=(data.get("model") or None),
         )
     except Exception as exc:  # noqa: BLE001
-        return _fallback(f"No se pudo analizar la foto ({exc}).")
+        # No se le muestra el detalle técnico de exc al técnico (podría ser
+        # una respuesta de error de OpenAI con datos internos) — se registra
+        # acá para diagnóstico y se responde con el fallback por reglas.
+        logger.warning("Fallo el análisis de IA (categoría=%s): %s", category, exc)
+        return _fallback(category, "servicio de IA no disponible en este momento")
