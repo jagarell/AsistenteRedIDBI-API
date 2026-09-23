@@ -1,4 +1,4 @@
-"""Motor conversacional de 20 nodos y seam de generación de propuesta.
+"""Motor conversacional (ver TOTAL_NODES en nodes.py) y seam de generación de propuesta.
 
 El progreso por nodos es siempre propio (determinista). La generación de la
 propuesta es intercambiable vía CHAT_PROPOSAL_ENGINE:
@@ -92,7 +92,7 @@ def get_proposal_generator() -> ProposalGenerator:
 
 
 class ChatEngine:
-    """Recorre el grafo de 20 nodos y, al finalizar, genera la propuesta."""
+    """Recorre el grafo de nodos (TOTAL_NODES) y, al finalizar, genera la propuesta."""
 
     def __init__(self, proposal_generator: ProposalGenerator | None = None):
         self._generate = proposal_generator or get_proposal_generator()
@@ -125,11 +125,19 @@ class ChatEngine:
 
         next_step = request.currentStep + 1
 
-        # Nodos "auto" (ej. coordenadas GPS): se resuelven solos, sin
-        # preguntarle nada al técnico, encadenando hasta el próximo nodo real.
-        while next_step < TOTAL_NODES and NODES[next_step].auto:
-            auto_node = NODES[next_step]
-            updated[auto_node.key] = self._resolve_auto(auto_node.key, updated)
+        # Nodos "auto" (ej. coordenadas GPS) se resuelven solos; nodos con
+        # skip_if se saltan cuando ya no aplican según lo respondido hasta
+        # ahora (ej. no preguntar puertos de switch si dijo que no tiene) —
+        # en ambos casos, sin mostrarle nada al técnico, encadenando hasta
+        # el próximo nodo que sí corresponda preguntar.
+        while next_step < TOTAL_NODES:
+            skip_node = NODES[next_step]
+            if skip_node.auto:
+                updated[skip_node.key] = self._resolve_auto(skip_node.key, updated)
+            elif skip_node.skip_if is not None and skip_node.skip_if(updated):
+                updated[skip_node.key] = ""
+            else:
+                break
             next_step += 1
 
         answered = len(updated)

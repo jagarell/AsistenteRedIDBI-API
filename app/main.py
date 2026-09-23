@@ -73,5 +73,5 @@ def evidence_checklist_seed(request: EvidenceChecklistSeedRequest):
 def chat_nodes():
     """Metadata liviana (clave + pregunta) de los nodos del chat, para que el
     gateway pueda mostrar las respuestas guardadas con su texto de pregunta
-    sin duplicar las 23 preguntas en Java."""
+    sin duplicar las preguntas en Java."""
     return [{"key": node.key, "question": node.question} for node in NODES if not node.auto]

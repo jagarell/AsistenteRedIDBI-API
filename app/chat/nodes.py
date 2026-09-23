@@ -1,13 +1,15 @@
-"""Definición del flujo conversacional de 20 nodos.
+"""Definición del flujo conversacional de nodos.
 
 Cada nodo captura un dato técnico del levantamiento de red. El flujo reemplaza
 el checklist manual de IDBI y garantiza la completitud de la información
 necesaria para el análisis, la propuesta y la topología.
 """
 from enum import Enum
-from typing import List, Optional
+from typing import Callable, Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+from app.chat.answers import is_yes, to_int
 
 
 class InputType(str, Enum):
@@ -23,6 +25,8 @@ class InputType(str, Enum):
 
 
 class Node(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     key: str
     question: str
     input_type: InputType
@@ -33,9 +37,14 @@ class Node(BaseModel):
     # Nodos que el motor resuelve solo (ej. geocodificar el local a partir de
     # nombre+dirección) sin mostrarle una pregunta al técnico.
     auto: bool = False
+    # Se salta el nodo (sin preguntarlo) si esta función, evaluada contra las
+    # respuestas ya dadas, devuelve True — ej. no preguntar cuántos puertos
+    # tiene el switch si el técnico ya dijo que no tiene switch. Ver
+    # ChatEngine.answer, mismo mecanismo que usan los nodos `auto`.
+    skip_if: Optional[Callable[[Dict[str, str]], bool]] = None
 
 
-# Flujo de 20 nodos. El orden define la secuencia de la conversación.
+# Flujo de nodos (ver TOTAL_NODES). El orden define la secuencia de la conversación.
 NODES: List[Node] = [
     Node(key="establishment_name",
          question="¿Cuál es el nombre del establecimiento que vamos a evaluar?",
@@ -66,9 +75,6 @@ NODES: List[Node] = [
     Node(key="router_model",
          question="¿Qué router o módem tiene actualmente? Indica marca/modelo.",
          input_type=InputType.TEXT),
-    Node(key="router_location",
-         question="¿Dónde está instalado el router principal?",
-         input_type=InputType.TEXT),
     Node(key="establishment_area_m2",
          question="¿Cuántos metros cuadrados tiene el local?",
          input_type=InputType.NUMBER,
@@ -84,10 +90,11 @@ NODES: List[Node] = [
          question="¿El local cuenta con switches de red?",
          input_type=InputType.YES_NO),
     Node(key="switch_ports",
-         question="Si tiene switch, ¿cuántos puertos tiene en total? (0 si no aplica)",
+         question="¿Cuántos puertos tiene el switch en total?",
          input_type=InputType.NUMBER,
          unit="puertos",
-         required=False),
+         required=False,
+         skip_if=lambda a: not is_yes(a.get("has_switches", ""))),
     Node(key="pos_count",
          question="¿Cuántos POS (puntos de venta) necesitan conexión?",
          input_type=InputType.NUMBER,
@@ -100,7 +107,8 @@ NODES: List[Node] = [
          question="¿Cómo se conectan las impresoras/ticketeras?",
          input_type=InputType.CHOICE,
          options=["USB", "Puerto de red", "Ambos"],
-         help_text="Dato clave: determina si la impresora cuelga del POS (USB) o del switch (red)."),
+         help_text="Dato clave: determina si la impresora cuelga del POS (USB) o del switch (red).",
+         skip_if=lambda a: to_int(a.get("printer_count", "0")) == 0),
     Node(key="camera_count",
          question="¿Cuántas cámaras de seguridad requieren red?",
          input_type=InputType.NUMBER,
@@ -130,12 +138,6 @@ NODES: List[Node] = [
          question="¿Qué servicios adicionales necesita?",
          input_type=InputType.MULTI_SELECT,
          options=["Red de invitados", "VLAN", "Firewall", "Enlace de respaldo"],
-         required=False),
-    Node(key="photos",
-         question="Al terminar esta evaluación pasarás a capturar evidencia "
-                   "fotográfica de las zonas críticas (caja, cocina, barra, rack). "
-                   "¿Confirmas que continuarás con esa captura?",
-         input_type=InputType.YES_NO,
          required=False),
 ]
 
