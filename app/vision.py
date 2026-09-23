@@ -52,6 +52,13 @@ _EQUIPMENT_CATEGORIES = {
 }
 
 
+# ~15MB de imagen real (el base64 pesa ~4/3 de eso) — bien por encima de lo
+# que sube la app hoy (comprime a máx. 2048px/JPEG 90, normalmente <1MB),
+# pero evita mandarle a OpenAI un payload gigante si algo en el camino no se
+# comprimió como se esperaba.
+_MAX_IMAGE_BASE64_CHARS = 20_000_000
+
+
 def _fallback(message: str) -> PhotoAnalyzeResult:
     return PhotoAnalyzeResult(description=message)
 
@@ -59,6 +66,9 @@ def _fallback(message: str) -> PhotoAnalyzeResult:
 def analyze_photo(category: str, image_base64: str) -> PhotoAnalyzeResult:
     if not settings.openai_api_key:
         return _fallback("Análisis de IA no configurado (falta OPENAI_API_KEY).")
+
+    if len(image_base64) > _MAX_IMAGE_BASE64_CHARS:
+        return _fallback("La foto es demasiado pesada para analizarla.")
 
     label = _CATEGORY_LABELS.get(category, "un elemento de infraestructura de red")
     is_equipment = category in _EQUIPMENT_CATEGORIES
