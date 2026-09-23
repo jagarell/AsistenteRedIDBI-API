@@ -29,10 +29,11 @@ def build_evidence_checklist(answers: Dict[str, str]) -> EvidenceChecklistSeed:
     zones = [z.strip() for z in (answers.get("wifi_zones", "") or "").split(",") if z.strip()]
 
     areas: List[ChecklistArea] = [
-        ChecklistArea(name="Rack / Router"),
         # Área fija reservada para el plano del local y el diagrama de
         # topología — no es una zona física, pero necesita su propio ítem
         # con foto(s) igual que cualquier área real (ver EvidenceFragment).
+        # El rack/router en sí NO tiene un área propia — la foto del equipo
+        # "router" (más abajo) ya lo cubre, sin duplicar el mismo objeto.
         ChecklistArea(name="Plano y Topología"),
     ]
     areas.extend(ChecklistArea(name=zone) for zone in zones)
