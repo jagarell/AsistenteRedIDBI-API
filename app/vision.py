@@ -62,6 +62,20 @@ _EQUIPMENT_CATEGORIES = {
 _MAX_IMAGE_BASE64_CHARS = 20_000_000
 
 
+def _clean_detected_field(value: object) -> str | None:
+    """El prompt le pide al modelo escribir null cuando no sabe la marca/modelo,
+    pero a veces responde con el string literal "null" en vez del JSON null —
+    sin este filtro, ese texto se cuela hasta el reporte final (ver
+    app.chat.proposal._compute_as_is, que arma frases tipo "la foto muestra
+    'null null'" si no se limpia acá)."""
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    if not cleaned or cleaned.lower() in ("null", "none", "n/a", "desconocido"):
+        return None
+    return cleaned
+
+
 def _fallback(category: str, reason: str) -> PhotoAnalyzeResult:
     """Análisis por reglas fijas (sin IA) cuando OpenAI no está disponible
     (sin key, sin crédito, caído, rate-limited, etc.) — nunca deja al técnico
@@ -143,8 +157,8 @@ def analyze_photo(category: str, image_base64: str) -> PhotoAnalyzeResult:
 
         return PhotoAnalyzeResult(
             description=(data.get("description") or "").strip() or "No se pudo generar una descripción.",
-            brand=(data.get("brand") or None),
-            model=(data.get("model") or None),
+            brand=_clean_detected_field(data.get("brand")),
+            model=_clean_detected_field(data.get("model")),
         )
     except Exception as exc:  # noqa: BLE001
         # No se le muestra el detalle técnico de exc al técnico (podría ser
