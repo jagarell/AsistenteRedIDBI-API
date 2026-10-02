@@ -14,7 +14,8 @@ from pydantic import BaseModel
 from app.chat import checks
 from app.chat.checks import Rule
 from app.chat.flow_engine import FLOW, Session
-from app.chat.map_render import render_topology_png
+from app.chat.map_model import MapDocument, from_topology
+from app.chat.map_render import render_map_png
 from app.chat.topology import build_state_topology
 
 SRC_CHAT = "Chat del técnico"
@@ -106,7 +107,11 @@ def _city(address: str) -> str:
     return parts[-1] if len(parts) > 1 else ""
 
 
-def build_minuta_document(state: Dict[str, Any]) -> MinutaDocument:
+def build_minuta_document(
+    state: Dict[str, Any],
+    map_doc: Optional[MapDocument] = None,
+    map_images: Optional[Dict[str, bytes]] = None,
+) -> MinutaDocument:
     s = Session(state)
     a = state["answers"]
     ans = lambda nid, scope="": checks.answer(state, nid, scope)  # noqa: E731
@@ -290,7 +295,7 @@ def build_minuta_document(state: Dict[str, Any]) -> MinutaDocument:
     rules = checks.evaluate_rules(state, pending_count=len(pending_rows) + len(skipped))
     status = checks.overall_status(rules)
     topo = build_state_topology(state)
-    png = render_topology_png(topo)
+    png = render_map_png(map_doc if map_doc is not None else from_topology(topo), map_images)
 
     name = str(ans("P02") or ans("P01") or "el local")
     technician = str(ans("P07") or "")
