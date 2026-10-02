@@ -128,3 +128,24 @@ def test_omitir_evidencia():
     s.advance("OMITIR")
     assert state["skipped"][0]["code"] == "E1"
     assert s.prompt()["evidenceCode"] == "E2"
+
+
+def test_contexto_teclado_y_pistas():
+    state = new_state({"today": "01/06/2026", "technician": "Yo"})
+    s = Session(state)
+    for raw in ["Cliente", "Local", "Calle 1", "Ana, jefa"]:
+        s.advance(raw)
+    p = s.prompt()
+    assert p["nodeId"] == "P05" and p["keyboard"] == "phone"
+    s.advance("987654321")
+    assert s.prompt()["keyboard"] == "date" and s.prompt()["defaultValue"] == "01/06/2026"
+    # dentro de un loop de cajas el contexto dice "Caja 1 de 2"
+    run_state, _ = run({"P10": 1, "P11": ["CAJA"], "P12": 2, "P18": "CAJA", "P50": "NO"})
+    state2 = new_state({})
+    s2 = Session(state2)
+    for raw in ["C", "L", "D", "N", "987654321", "01/06/2026", "Yo", "IMPLEMENTACION", "FAST_FOOD", "1", "CAJA", "2",
+                "CLARO", "FIBRA", "100", "NO", "NO", "CAJA"]:
+        s2.advance(raw)
+    for _ in range(3):
+        s2.advance("", {"count": 1, "extracted": {}})
+    assert s2.prompt()["context"] == "Caja 1 de 2"

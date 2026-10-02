@@ -14,7 +14,7 @@ from typing import Any, Callable, Dict, List, Optional
 from app.chat.config import settings
 from app.chat import checks
 from app.chat.evidence import analyze_evidence
-from app.chat.flow_engine import BLOCK_ORDER, Session, StepError, new_state
+from app.chat.flow_engine import BLOCK_ORDER, FLOW, Session, StepError, new_state
 from app.chat.legacy_adapter import completed_answers, legacy_answers, partial_answers
 from app.chat.proposal import generate_proposal as rule_based_proposal
 from app.chat.schemas import (
@@ -196,6 +196,18 @@ class ChatEngine:
         return self._respond(request.evaluationId, state, last_evidence=evidence_info, cross_checks=cross,
                              follow_ups=follow)
 
+    def _progress(self, state: Dict[str, Any], block: Optional[str], block_idx: int) -> int:
+        """Avance por bloques (A..I) suavizado con lo ya respondido dentro del bloque actual."""
+        total_in_block = sum(
+            1 for n in FLOW.nodes.values() if n.get("block") == block and n["kind"] in ("question", "evidence")
+        ) or 1
+        answered_in_block = sum(
+            1 for key in state["answers"]
+            if "." not in key and FLOW.nodes.get(key.split("#")[0], {}).get("block") == block
+        )
+        fraction = min(0.9, answered_in_block / total_in_block)
+        return int(((block_idx - 1) + fraction) / len(BLOCK_ORDER) * 100)
+
     def _flag_documented(self, state: Dict[str, Any], extracted: Dict[str, Any]) -> None:
         known = checks.known_ips(state)
         for device in extracted.get("dispositivos") or []:
@@ -239,7 +251,7 @@ class ChatEngine:
             currentOptions=[o["label"] for o in prompt.get("options", [])] or None,
             answeredQuestions=answered,
             totalQuestions=len(BLOCK_ORDER),
-            progressPercent=100 if done else int((block_idx - 1) / len(BLOCK_ORDER) * 100),
+            progressPercent=100 if done else self._progress(state, prompt.get("block"), block_idx),
             completed=done,
             answers=answers,
             proposal=proposal,

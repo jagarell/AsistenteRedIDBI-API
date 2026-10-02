@@ -355,7 +355,10 @@ class Session:
                 if not items:
                     nid = n["exit"]
                     continue
-                s["loops"].append({"id": nid, "items": items, "idx": 0, "body": n["body"], "exit": n["exit"]})
+                s["loops"].append({
+                    "id": nid, "items": items, "idx": 0, "body": n["body"], "exit": n["exit"],
+                    "itemLabel": n.get("itemLabel", "{i}"), "mode": "count" if "count" in ov else "list",
+                })
                 nid = n["body"]
                 continue
             if k == "subflow_call":
@@ -405,6 +408,9 @@ class Session:
             "blockIndex": BLOCK_ORDER.index(block) + 1 if block in BLOCK_ORDER else 0,
             "blockCount": len(BLOCK_ORDER),
             "defaultValue": self._default(n, options),
+            "context": self.loop_context(),
+            "keyboard": self._keyboard(n),
+            "hint": self._hint(n),
         }
         if kind == "evidence":
             p.update({
@@ -419,6 +425,49 @@ class Session:
             ctx = s["calls"][-1]["ctx"]
             p["ctx"] = {"area": ctx.get("area"), "equipo": ctx.get("equipo")}
         return p
+
+    def loop_context(self) -> str:
+        """Dónde está el técnico dentro de lo que se repite: "Caja 1 de 2",
+        "Cocina (1 de 2)", "Raspberry Caja 1 · ubicación"."""
+        parts: List[str] = []
+        for l in self.s["loops"]:
+            total = len(l["items"])
+            item = l["items"][l["idx"]]
+            label = l["itemLabel"].replace("{i}", str(l["idx"] + 1)).replace("{item.label}", self.label_of(item))
+            parts.append(f"{label} de {total}" if l["mode"] == "count" else f"{label} ({l['idx'] + 1} de {total})")
+        if self.s["calls"]:
+            ctx = self.s["calls"][-1]["ctx"]
+            parts.append(f"Ubicación · {ctx.get('equipo')}")
+        return " · ".join(parts)
+
+    def _keyboard(self, n: dict) -> str:
+        if n["id"] == "P05":
+            return "phone"
+        if n["id"] == "P06":
+            return "date"
+        if n.get("inputType") == "NUMBER":
+            return "number"
+        return "text"
+
+    def _hint(self, n: dict) -> str:
+        v = n.get("validation") or {}
+        itype = n.get("inputType")
+        if itype == "NUMBER":
+            if "min" in v and "max" in v:
+                hint = f"Número entre {v['min']} y {v['max']}"
+            else:
+                hint = "Escribe un número"
+        elif itype == "TEXT":
+            hint = f"Mínimo {v['minLength']} caracteres" if "minLength" in v else "Escribe tu respuesta..."
+            if n["id"] == "P05":
+                hint = "Ej. 987 654 321"
+            if n["id"] == "P06":
+                hint = "dd/mm/aaaa"
+        else:
+            hint = ""
+        if hint and not n.get("required", True):
+            hint += " (opcional)"
+        return hint
 
     def _default(self, n: dict, options: List[Tuple[str, str]]) -> Optional[str]:
         ctx = self.s.get("context", {})
