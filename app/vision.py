@@ -29,6 +29,18 @@ class PhotoAnalyzeResult(BaseModel):
     model: str | None = None
 
 
+class SpeedtestPhotoResult(BaseModel):
+    """Lectura de una captura de speedtest.net/fast.net/etc. — ver
+    analyze_speedtest_photo(). Todos los campos quedan en null si no se leen
+    con claridad en la imagen (mismo criterio que brand/model en
+    PhotoAnalyzeResult: nunca se inventan)."""
+    downloadMbps: float | None = None
+    uploadMbps: float | None = None
+    pingMs: float | None = None
+    isp: str | None = None
+    description: str
+
+
 _CATEGORY_LABELS = {
     "router": "un router/módem de red",
     "switch": "un switch de red",
@@ -166,3 +178,77 @@ def analyze_photo(category: str, image_base64: str) -> PhotoAnalyzeResult:
         # acá para diagnóstico y se responde con el fallback por reglas.
         logger.warning("Fallo el análisis de IA (categoría=%s): %s", category, exc)
         return _fallback(category, "servicio de IA no disponible en este momento")
+
+
+def _speedtest_fallback(reason: str) -> SpeedtestPhotoResult:
+    return SpeedtestPhotoResult(
+        description=f"Análisis automático no disponible ({reason}). "
+                     "Anota manualmente la velocidad de bajada/subida, el "
+                     "ping y el proveedor que muestra la captura."
+    )
+
+
+def analyze_speedtest_photo(image_base64: str) -> SpeedtestPhotoResult:
+    """Lee una captura de un test de velocidad (speedtest.net, fast.com, etc.)
+    — mismo seam OPENAI_API_KEY/OPENAI_MODEL y mismo patrón try/except con
+    fallback por reglas que analyze_photo(), pero con su propio modelo de
+    resultado (SpeedtestPhotoResult) en vez de description/brand/model."""
+    if not settings.openai_api_key:
+        return _speedtest_fallback("IA no configurada")
+
+    if len(image_base64) > _MAX_IMAGE_BASE64_CHARS:
+        return _speedtest_fallback("la foto es demasiado pesada")
+
+    try:
+        from openai import OpenAI  # import diferido: solo se requiere aquí
+
+        client = OpenAI(api_key=settings.openai_api_key)
+
+        prompt_text = (
+            "Esta imagen debería ser el resultado de una prueba de velocidad "
+            "de internet (speedtest.net, fast.com, u otra app similar). Lee "
+            "SOLO lo que esté claramente visible: velocidad de bajada (Mbps), "
+            "velocidad de subida (Mbps), ping (ms), y el nombre del proveedor "
+            "de internet (ISP) si aparece en la imagen. No inventes ni "
+            "adivines valores que no se vean con claridad — en ese caso usa "
+            "null. Responde exclusivamente un JSON con este formato exacto: "
+            '{"downloadMbps": número o null, "uploadMbps": número o null, '
+            '"pingMs": número o null, "isp": "texto o null", "description": '
+            '"1 frase resumen de lo que muestra la captura"}'
+        )
+
+        completion = client.chat.completions.create(
+            model=settings.openai_model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt_text},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"},
+                        },
+                    ],
+                }
+            ],
+            max_tokens=300,
+            response_format={"type": "json_object"},
+        )
+        text = (completion.choices[0].message.content or "").strip()
+
+        try:
+            data = json.loads(text)
+        except ValueError:
+            return _speedtest_fallback("la IA no devolvió un formato válido")
+
+        return SpeedtestPhotoResult(
+            downloadMbps=data.get("downloadMbps"),
+            uploadMbps=data.get("uploadMbps"),
+            pingMs=data.get("pingMs"),
+            isp=_clean_detected_field(data.get("isp")),
+            description=(data.get("description") or "").strip()
+            or "No se pudo generar una descripción.",
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Fallo el análisis de speedtest: %s", exc)
+        return _speedtest_fallback("servicio de IA no disponible en este momento")

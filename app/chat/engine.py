@@ -10,10 +10,11 @@ import logging
 from typing import Callable, Dict
 
 from app.chat.config import settings
-from app.chat.nodes import NODES, TOTAL_NODES, node_at
+from app.chat.nodes import NODES, TOTAL_NODES, InputType, node_at
 from app.chat.proposal import generate_proposal as rule_based_proposal
 from app.chat.schemas import ChatAnswerRequest, ChatProposal, ChatResponse
 from app.geocoding import geocode
+from app.vision import analyze_speedtest_photo
 
 logger = logging.getLogger("idbi.chat")
 
@@ -121,7 +122,16 @@ class ChatEngine:
 
         current = NODES[request.currentStep]
         updated = dict(request.answers)
-        if request.answer.strip():
+        last_photo_result: Dict[str, object] | None = None
+        cross_validation_warning: str | None = None
+
+        if current.input_type == InputType.PHOTO:
+            if request.photoBase64:
+                result = analyze_speedtest_photo(request.photoBase64)
+                updated[current.key] = result.model_dump_json()
+                last_photo_result = result.model_dump()
+                cross_validation_warning = self._cross_validate_speedtest(result, updated)
+        elif request.answer.strip():
             updated[current.key] = request.answer.strip()
 
         next_step = request.currentStep + 1
@@ -145,7 +155,11 @@ class ChatEngine:
         progress = int(answered / TOTAL_NODES * 100)
 
         if next_step >= TOTAL_NODES:
-            return self._completed(request.evaluationId, updated)
+            return self._completed(
+                request.evaluationId, updated,
+                last_photo_result=last_photo_result,
+                cross_validation_warning=cross_validation_warning,
+            )
 
         nxt = node_at(next_step)
         return ChatResponse(
@@ -161,6 +175,23 @@ class ChatEngine:
             progressPercent=progress,
             completed=False,
             answers=updated,
+            lastPhotoResult=last_photo_result,
+            crossValidationWarning=cross_validation_warning,
+        )
+
+    def _cross_validate_speedtest(self, result, answers: Dict[str, str]) -> str | None:
+        """Si la captura de speedtest muestra un ISP distinto al que el
+        técnico ya había tecleado en internet_provider, lo señala en vez de
+        pisarlo en silencio — el técnico decide cuál es el correcto."""
+        reported_isp = answers.get("internet_provider", "").strip()
+        detected_isp = (result.isp or "").strip()
+        if not reported_isp or not detected_isp:
+            return None
+        if detected_isp.lower() in reported_isp.lower() or reported_isp.lower() in detected_isp.lower():
+            return None
+        return (
+            f'La captura muestra "{detected_isp}" como proveedor, pero '
+            f'dijiste "{reported_isp}". ¿Cuál es el correcto?'
         )
 
     def _resolve_auto(self, key: str, answers: Dict[str, str]) -> str:
@@ -168,7 +199,11 @@ class ChatEngine:
             return geocode(answers.get("establishment_name", ""), answers.get("address"))
         return ""
 
-    def _completed(self, evaluation_id: str, answers: Dict[str, str]) -> ChatResponse:
+    def _completed(
+        self, evaluation_id: str, answers: Dict[str, str],
+        last_photo_result: Dict[str, object] | None = None,
+        cross_validation_warning: str | None = None,
+    ) -> ChatResponse:
         proposal = self._generate(answers)
         return ChatResponse(
             evaluationId=evaluation_id,
@@ -183,4 +218,6 @@ class ChatEngine:
             completed=True,
             answers=answers,
             proposal=proposal,
+            lastPhotoResult=last_photo_result,
+            crossValidationWarning=cross_validation_warning,
         )

@@ -1,7 +1,7 @@
 """Modelos de entrada/salida del chat. La respuesta es un superconjunto
 compatible (aditivo) del contrato previo consumido por el gateway."""
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -18,6 +18,9 @@ class ChatAnswerRequest(BaseModel):
     currentStep: int = Field(ge=0)
     answer: str = ""
     answers: Dict[str, str] = {}
+    # Presente solo cuando el nodo actual es InputType.PHOTO — el motor lo
+    # consume en vez de `answer` (ver ChatEngine.answer).
+    photoBase64: Optional[str] = None
 
 
 # --- Topología estructurada ---
@@ -90,3 +93,10 @@ class ChatResponse(BaseModel):
     completed: bool
     answers: Dict[str, str]
     proposal: Optional[ChatProposal] = None
+    # Campos leídos por IA de la foto que se acaba de responder (ej. Mbps,
+    # ping, ISP de una captura de speedtest) — solo viene poblado en la
+    # respuesta inmediatamente posterior a responder un nodo PHOTO.
+    lastPhotoResult: Optional[Dict[str, Any]] = None
+    # Mensaje cuando lo leído en la foto no coincide con algo que el técnico
+    # ya había respondido antes (ej. ISP de la captura vs. internet_provider).
+    crossValidationWarning: Optional[str] = None

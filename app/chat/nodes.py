@@ -68,6 +68,11 @@ NODES: List[Node] = [
          question="¿Cuál es la velocidad de internet contratada?",
          input_type=InputType.NUMBER,
          unit="Mbps"),
+    Node(key="internet_speed_photo",
+         question="Haz una prueba en speedtest.net desde una compu del local "
+                   "y sube la captura. Leeré la velocidad, el ping y el "
+                   "proveedor por ti.",
+         input_type=InputType.PHOTO),
     Node(key="connection_type",
          question="¿Qué tipo de conexión a internet tiene?",
          input_type=InputType.CHOICE,
