@@ -48,8 +48,9 @@ _FIELDS: Dict[str, Dict[str, str]] = {
         "pingMs": "ping en reposo en ms (número)",
         "latenciaBajadaMs": "latencia bajo carga durante la bajada en ms (número), si aparece",
         "latenciaSubidaMs": "latencia bajo carga durante la subida en ms (número), si aparece",
-        "proveedor": "nombre del proveedor de internet (ISP) mostrado",
-        "servidor": "servidor de la prueba",
+        "proveedor": "nombre del proveedor de internet (ISP) del usuario; NO es el servidor de la prueba "
+                     "(en speedtest.net el ISP aparece en la fila del ícono de globo, debajo del servidor)",
+        "servidor": "servidor contra el que se hizo la prueba (ciudad/empresa del servidor)",
         "fechaHora": "fecha y hora de la prueba",
     },
     "E2": {"marca": "marca visible", "modelo": "modelo visible", "ubicacionVisual": "dónde está instalado"},
