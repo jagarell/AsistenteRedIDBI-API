@@ -1,26 +1,56 @@
-"""Modelos de entrada/salida del chat. La respuesta es un superconjunto
-compatible (aditivo) del contrato previo consumido por el gateway."""
+"""Modelos de entrada/salida del chat.
+
+El motor es el de flujo de 76 nodos (ver flow_engine.py): el cliente manda el
+`state` opaco que recibió en la respuesta anterior más la respuesta al nodo
+actual, y recibe el siguiente nodo. Los campos `current*`/`answers`/`proposal`
+se conservan con la misma forma de antes para los consumidores existentes."""
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from app.chat.nodes import InputType
+
+class InputType(str, Enum):
+    TEXT = "TEXT"
+    NUMBER = "NUMBER"
+    CHOICE = "CHOICE"              # selección única
+    MULTI_SELECT = "MULTI_SELECT"  # selección múltiple (valores separados por coma)
+    YES_NO = "YES_NO"
+    EVIDENCE = "EVIDENCE"          # 1 a 3 fotos leídas por IA
+    ALERT = "ALERT"                # aviso con botón "Entendido"
+    SUMMARY = "SUMMARY"            # resumen final con Generar minuta / mapa
 
 
 # --- Peticiones ---
 class ChatStartRequest(BaseModel):
     evaluationId: str
+    # Prefills de P06 (fecha) y P07 (técnico): los pone el gateway.
+    technicianName: Optional[str] = None
+    today: Optional[str] = None
 
 
 class ChatAnswerRequest(BaseModel):
     evaluationId: str
-    currentStep: int = Field(ge=0)
+    # Estado opaco devuelto por la respuesta anterior (JSON en string).
+    state: str
+    # Texto de la respuesta (opciones múltiples unidas por coma). Para
+    # EVIDENCE se ignora; para SUMMARY es la acción elegida.
     answer: str = ""
-    answers: Dict[str, str] = {}
-    # Presente solo cuando el nodo actual es InputType.PHOTO — el motor lo
-    # consume en vez de `answer` (ver ChatEngine.answer).
-    photoBase64: Optional[str] = None
+    # Solo en nodos EVIDENCE: 1..3 fotos en base64.
+    photosBase64: List[str] = Field(default_factory=list)
+
+
+class ChatAmendRequest(BaseModel):
+    """Corrige lo leído en una evidencia ("Corregir") y/o responde una pregunta
+    de confirmación del asistente (proveedor distinto, dispositivo sin documentar)."""
+    evaluationId: str
+    state: str
+    evidenceCode: Optional[str] = None
+    evidenceScope: str = ""
+    # Campos de `extracted` a sobrescribir (valores ya tipados: números, textos...).
+    fields: Dict[str, Any] = Field(default_factory=dict)
+    clarificationKey: Optional[str] = None
+    clarificationAnswer: Optional[str] = None
 
 
 # --- Topología estructurada ---
@@ -40,6 +70,9 @@ class TopologyNode(BaseModel):
     label: str
     type: str          # internet | router | switch | access_point | pos | printer | camera | computer
     level: int         # nivel jerárquico (0 = internet, 1 = router, 2 = switch, 3 = endpoints)
+    detail: Optional[str] = None   # 2ª línea (IP, modelo...) — la usa el mapa de la minuta
+    pending: bool = False          # equipo por adquirir/instalar (borde punteado)
+    floor: Optional[int] = None    # piso, cuando el negocio tiene más de uno
 
 
 class TopologyLink(BaseModel):
@@ -77,26 +110,31 @@ class ChatProposal(BaseModel):
 
 class ChatResponse(BaseModel):
     evaluationId: str
-    currentStep: int
-    currentQuestionKey: Optional[str]
+    # Pregunta/nodo actual, en la forma plana de siempre.
+    currentStep: int                       # nodos respondidos hasta ahora
+    currentQuestionKey: Optional[str]      # id del nodo (P22, A_RASPBERRY, ...)
     currentQuestion: Optional[str]
     currentInputType: Optional[InputType] = None
-    currentOptions: Optional[List[str]] = None
-    # Unidad de la pregunta actual (ej. "metros", "Mbps") — antes vivía en
-    # Node.unit pero nunca se mandaba al cliente, así que el técnico no
-    # tenía forma de saber en qué unidad responder salvo que la pregunta
-    # la mencionara a mano en el texto (inconsistente entre preguntas).
+    currentOptions: Optional[List[str]] = None   # etiquetas (compatibilidad)
     currentUnit: Optional[str] = None
+    # Progreso por bloque (A..I): las ramas hacen que el total real varíe.
     answeredQuestions: int
     totalQuestions: int
     progressPercent: int
     completed: bool
     answers: Dict[str, str]
     proposal: Optional[ChatProposal] = None
-    # Campos leídos por IA de la foto que se acaba de responder (ej. Mbps,
-    # ping, ISP de una captura de speedtest) — solo viene poblado en la
-    # respuesta inmediatamente posterior a responder un nodo PHOTO.
-    lastPhotoResult: Optional[Dict[str, Any]] = None
-    # Mensaje cuando lo leído en la foto no coincide con algo que el técnico
-    # ya había respondido antes (ej. ISP de la captura vs. internet_provider).
-    crossValidationWarning: Optional[str] = None
+
+    # --- Contrato del flujo de nodos ---
+    state: Optional[str] = None            # estado opaco para la próxima llamada
+    node: Optional[Dict[str, Any]] = None  # prompt completo del nodo actual
+    validationError: Optional[str] = None  # respuesta inválida: el nodo no avanzó
+    # Evidencia recién procesada: {code, nodeId, scope, area, equipo, count, extracted}
+    lastEvidence: Optional[Dict[str, Any]] = None
+    # Avisos de validación cruzada para mostrar como tarjetas en el chat.
+    crossChecks: List[str] = Field(default_factory=list)
+    # Preguntas de confirmación tras una evidencia: [{key, text, options[]}].
+    followUps: List[Dict[str, Any]] = Field(default_factory=list)
+    # Solo E3: imágenes con las credenciales ya desenfocadas (base64). El
+    # gateway las guarda en vez de las originales y no las reenvía a la app.
+    processedImages: Optional[List[str]] = None

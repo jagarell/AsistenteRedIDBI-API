@@ -128,3 +128,104 @@ def topology_to_text(topology: Topology) -> str:
         levels.setdefault(node.level, []).append(node.label)
     ordered = [", ".join(levels[lvl]) for lvl in sorted(levels)]
     return " → ".join(ordered)
+
+
+# --- Topología a partir del estado del flujo de nodos -------------------------
+def build_state_topology(state: Dict) -> Topology:
+    """Mapa de red a partir de lo que realmente se levantó: impresoras del
+    registro (la compartida es UN nodo "Bar + Jugos"), equipos por adquirir
+    con borde punteado, PC de caja por WiFi marcada como observada y equipos
+    del escáner de IP que nadie documentó."""
+    from app.chat import checks
+    from app.chat.flow_engine import Session
+
+    s = Session(state)
+    a = state["answers"]
+    nodes: List[TopologyNode] = []
+    links: List[TopologyLink] = []
+
+    def floor_of(area_value) -> int | None:
+        if int(a.get("P10") or 1) <= 1 or area_value is None:
+            return None
+        areas = a.get("P11") or []
+        if area_value in areas:
+            v = a.get(f"P11a#L_PISOS:{areas.index(area_value) + 1}")
+            return int(v) if v else None
+        return None
+
+    def add(node_id, label, type_, level, detail=None, pending=False, floor=None):
+        nodes.append(TopologyNode(id=node_id, label=label, type=type_, level=level,
+                                  detail=detail, pending=pending, floor=floor))
+        return node_id
+
+    def link(src, dst, conn, status=LinkStatus.OPERATIVO):
+        links.append(TopologyLink(source=src, target=dst, connectionType=conn, status=status))
+
+    wire = {"CABLE_RED": ConnectionType.CABLE_RED, "WIFI": ConnectionType.WIFI,
+            "USB": ConnectionType.USB_BLUETOOTH, "BLUETOOTH": ConnectionType.USB_BLUETOOTH}
+
+    provider = s.label_of(a.get("P13")) if a.get("P13") else "Proveedor de Internet"
+    kind = {"FIBRA": "Fibra óptica", "COBRE": "Cobre", "INALAMBRICA": "Inalámbrica"}.get(a.get("P14", ""))
+    internet = add("internet", f"Internet · {provider}", "internet", 0, kind)
+
+    e3 = checks.first_extracted(state, "E3")
+    model = " ".join(x for x in (e3.get("marca"), e3.get("modelo")) if x)
+    router_area = a.get("P18")
+    router = add("router", f"Router {model}".strip(), "router", 1,
+                 e3.get("ipGestion") and f"{e3['ipGestion']} · gateway",
+                 floor=floor_of(router_area))
+    link(internet, router, ConnectionType.CABLE_RED)
+
+    pcs: List[str] = []
+    for c in checks.cajas(state):
+        sc = f"L_CAJAS:{c['i']}"
+        name = f"Caja {c['i']}" if len(checks.cajas(state)) > 1 else "Caja"
+        if c["equipo"] in ("PC", "LAPTOP"):
+            ip = c["ipconfig"].get("ipv4")
+            host = c["ipconfig"].get("nombreEquipo")
+            pc = add(f"pc_{c['i']}", f"PC {name}", "computer", 2,
+                     " · ".join(x for x in (host, f"IP {ip}" if ip else None) if x) or None)
+            wifi = c["conexion"] == "WIFI"
+            link(router, pc, wire.get(c["conexion"], ConnectionType.CABLE_RED),
+                 LinkStatus.CON_FALLA if wifi else LinkStatus.OPERATIVO)
+            pcs.append(pc)
+        elif a.get(f"P22a#{sc}") == "SI":
+            rb = add(f"pc_{c['i']}", f"Raspberry {name}", "computer", 2)
+            link(router, rb, wire.get(a.get(f"P22c#{sc}"), ConnectionType.CABLE_RED))
+            pcs.append(rb)
+        else:
+            want = s.label_of(a.get(f"P22b#{sc}") or "RASPBERRY")
+            pend = add(f"pc_{c['i']}", f"{want} {name}", "computer", 2, "por adquirir", pending=True)
+            link(router, pend, ConnectionType.CABLE_RED)
+            pcs.append(pend)
+
+    for p in checks.printers_detail(state):
+        t = p["ticket"]
+        detail = " · ".join(x for x in (
+            f"{p.get('marca') and s.label_of(p['marca'])}" if p.get("marca") else None,
+            t.get("modelo"), f"IP {t['ip']}" if t.get("ip") else None) if x) or None
+        node = add(f"printer_{p['id']}", f"Impresora {' + '.join(s.label_of(x) for x in p['areas'])}",
+                   "printer", 3, detail, pending=not p["existing"], floor=floor_of(p.get("ubicacion")))
+        conn = wire.get(p["conexion"], ConnectionType.CABLE_RED)
+        if conn == ConnectionType.USB_BLUETOOTH and pcs:
+            link(pcs[0], node, conn)
+        else:
+            link(router, node, conn)
+
+    if a.get("P45") == "SI":
+        ap = add("ap_1", "Access point / repetidor", "access_point", 2)
+        link(router, ap, ConnectionType.CABLE_RED)
+    if a.get("P47") == "SI":
+        cam = add("camera_1", "Cámaras de seguridad", "camera", 3)
+        link(router, cam, ConnectionType.CABLE_RED)
+
+    known = checks.known_ips(state)
+    shown = 0
+    for d in checks.scanner_devices(state):
+        if shown >= 3 or not d.get("ip") or d["ip"] in known or not d.get("nombre"):
+            continue
+        shown += 1
+        did = add(f"detected_{shown}", d["nombre"], "detected", 3, f"{d['ip']} · sin documentar")
+        link(router, did, ConnectionType.WIFI)
+
+    return Topology(nodes=nodes, links=links)

@@ -1,20 +1,27 @@
-"""Motor conversacional (ver TOTAL_NODES en nodes.py) y seam de generación de propuesta.
+"""Motor conversacional del flujo de 76 nodos y seam de generación de propuesta.
 
-El progreso por nodos es siempre propio (determinista). La generación de la
+El avance por nodos es siempre propio (determinista, ver flow_engine.py). La generación de la
 propuesta es intercambiable vía CHAT_PROPOSAL_ENGINE:
   - 'builtin' (por defecto): motor de reglas local.
   - 'flowise': delega en una instancia Flowise (con fallback a reglas).
   - 'openai': delega en la API de OpenAI (con fallback a reglas).
 """
+import json
 import logging
-from typing import Callable, Dict
+from datetime import date
+from typing import Any, Callable, Dict, List, Optional
 
 from app.chat.config import settings
-from app.chat.nodes import NODES, TOTAL_NODES, InputType, node_at
+from app.chat import checks
+from app.chat.evidence import analyze_evidence
+from app.chat.flow_engine import BLOCK_ORDER, Session, StepError, new_state
+from app.chat.legacy_adapter import completed_answers, legacy_answers, partial_answers
 from app.chat.proposal import generate_proposal as rule_based_proposal
-from app.chat.schemas import ChatAnswerRequest, ChatProposal, ChatResponse
+from app.chat.schemas import (
+    ChatAmendRequest, ChatAnswerRequest, ChatProposal, ChatResponse, ChatStartRequest, InputType,
+)
+from app.chat.topology import build_state_topology, topology_to_text
 from app.geocoding import geocode
-from app.vision import analyze_speedtest_photo
 
 logger = logging.getLogger("idbi.chat")
 
@@ -92,132 +99,155 @@ def get_proposal_generator() -> ProposalGenerator:
     return rule_based_proposal
 
 
+def _without_covered(cross: List[str], follow: List[Dict[str, Any]]) -> List[str]:
+    """Si una pregunta de confirmación ya cubre el aviso (proveedor distinto),
+    no se repite como tarjeta ámbar."""
+    if any(f["key"] == "provider" for f in follow):
+        return [m for m in cross if "proveedor" not in m.lower()]
+    return cross
+
+
 class ChatEngine:
-    """Recorre el grafo de nodos (TOTAL_NODES) y, al finalizar, genera la propuesta."""
+    """Avanza el flujo de nodos un paso por llamada y, al finalizar, genera la propuesta."""
 
     def __init__(self, proposal_generator: ProposalGenerator | None = None):
         self._generate = proposal_generator or get_proposal_generator()
 
-    def start(self, evaluation_id: str) -> ChatResponse:
-        first = NODES[0]
-        return ChatResponse(
-            evaluationId=evaluation_id,
-            currentStep=0,
-            currentQuestionKey=first.key,
-            currentQuestion=first.question,
-            currentInputType=first.input_type,
-            currentOptions=first.options,
-            currentUnit=first.unit,
-            answeredQuestions=0,
-            totalQuestions=TOTAL_NODES,
-            progressPercent=0,
-            completed=False,
-            answers={},
-        )
+    # ---- entradas HTTP ----------------------------------------------------
+    def start(self, request: ChatStartRequest) -> ChatResponse:
+        state = new_state({
+            "today": request.today or date.today().strftime("%d/%m/%Y"),
+            "technician": request.technicianName or "",
+        })
+        return self._respond(request.evaluationId, state)
 
     def answer(self, request: ChatAnswerRequest) -> ChatResponse:
-        # Si ya se superó el último nodo, cerrar directamente.
-        if request.currentStep >= TOTAL_NODES:
-            return self._completed(request.evaluationId, dict(request.answers))
+        state: Dict[str, Any] = json.loads(request.state)
+        session = Session(state)
+        before = session.prompt()
+        node_id, scope = before.get("nodeId"), before.get("scope", "")
 
-        current = NODES[request.currentStep]
-        updated = dict(request.answers)
-        last_photo_result: Dict[str, object] | None = None
-        cross_validation_warning: str | None = None
+        evidence_info: Optional[Dict[str, Any]] = None
+        processed: Optional[List[str]] = None
+        advance_evidence: Optional[Dict[str, Any]] = None
+        if before.get("kind") == "evidence" and request.photosBase64:
+            photos = request.photosBase64[: before.get("maxFiles", 3)]
+            result = analyze_evidence(before["evidenceCode"], photos)
+            processed = result.processedImages
+            advance_evidence = {"count": len(photos), "extracted": result.extracted}
 
-        if current.input_type == InputType.PHOTO:
-            if request.photoBase64:
-                result = analyze_speedtest_photo(request.photoBase64)
-                updated[current.key] = result.model_dump_json()
-                last_photo_result = result.model_dump()
-                cross_validation_warning = self._cross_validate_speedtest(result, updated)
-        elif request.answer.strip():
-            updated[current.key] = request.answer.strip()
+        try:
+            session.advance(request.answer, advance_evidence)
+        except StepError as exc:
+            return self._respond(request.evaluationId, state, validation_error=str(exc))
 
-        next_step = request.currentStep + 1
+        cross: List[str] = []
+        if advance_evidence is not None:
+            code = before["evidenceCode"]
+            cross = checks.upload_warnings(state, code, scope, advance_evidence["extracted"])
+            if code == "E8":
+                self._flag_documented(state, advance_evidence["extracted"])
+            follow = checks.follow_ups(state, code, advance_evidence["extracted"])
+            cross = _without_covered(cross, follow)
+            ctx = before.get("ctx") or {}
+            evidence_info = {
+                "code": code, "nodeId": node_id, "scope": scope,
+                "area": ctx.get("area"), "equipo": ctx.get("equipo"),
+                "count": advance_evidence["count"], "extracted": advance_evidence["extracted"],
+            }
 
-        # Nodos "auto" (ej. coordenadas GPS) se resuelven solos; nodos con
-        # skip_if se saltan cuando ya no aplican según lo respondido hasta
-        # ahora (ej. no preguntar puertos de switch si dijo que no tiene) —
-        # en ambos casos, sin mostrarle nada al técnico, encadenando hasta
-        # el próximo nodo que sí corresponda preguntar.
-        while next_step < TOTAL_NODES:
-            skip_node = NODES[next_step]
-            if skip_node.auto:
-                updated[skip_node.key] = self._resolve_auto(skip_node.key, updated)
-            elif skip_node.skip_if is not None and skip_node.skip_if(updated):
-                updated[skip_node.key] = ""
-            else:
-                break
-            next_step += 1
+        if node_id == "P03":
+            self._geocode(state)
 
-        answered = len(updated)
-        progress = int(answered / TOTAL_NODES * 100)
-
-        if next_step >= TOTAL_NODES:
-            return self._completed(
-                request.evaluationId, updated,
-                last_photo_result=last_photo_result,
-                cross_validation_warning=cross_validation_warning,
-            )
-
-        nxt = node_at(next_step)
-        return ChatResponse(
-            evaluationId=request.evaluationId,
-            currentStep=next_step,
-            currentQuestionKey=nxt.key,
-            currentQuestion=nxt.question,
-            currentInputType=nxt.input_type,
-            currentOptions=nxt.options,
-            currentUnit=nxt.unit,
-            answeredQuestions=answered,
-            totalQuestions=TOTAL_NODES,
-            progressPercent=progress,
-            completed=False,
-            answers=updated,
-            lastPhotoResult=last_photo_result,
-            crossValidationWarning=cross_validation_warning,
+        return self._respond(
+            request.evaluationId, state,
+            last_evidence=evidence_info, cross_checks=cross, processed_images=processed,
+            follow_ups=follow if advance_evidence is not None else None,
         )
 
-    def _cross_validate_speedtest(self, result, answers: Dict[str, str]) -> str | None:
-        """Si la captura de speedtest muestra un ISP distinto al que el
-        técnico ya había tecleado en internet_provider, lo señala en vez de
-        pisarlo en silencio — el técnico decide cuál es el correcto."""
-        reported_isp = answers.get("internet_provider", "").strip()
-        detected_isp = (result.isp or "").strip()
-        if not reported_isp or not detected_isp:
-            return None
-        if detected_isp.lower() in reported_isp.lower() or reported_isp.lower() in detected_isp.lower():
-            return None
-        return (
-            f'La captura muestra "{detected_isp}" como proveedor, pero '
-            f'dijiste "{reported_isp}". ¿Cuál es el correcto?'
-        )
+    def amend(self, request: ChatAmendRequest) -> ChatResponse:
+        """"Corregir" una evidencia o responder una pregunta de confirmación."""
+        state: Dict[str, Any] = json.loads(request.state)
+        evidence_info: Optional[Dict[str, Any]] = None
+        cross: List[str] = []
 
-    def _resolve_auto(self, key: str, answers: Dict[str, str]) -> str:
-        if key == "location":
-            return geocode(answers.get("establishment_name", ""), answers.get("address"))
-        return ""
+        if request.evidenceCode:
+            found = [e for e in state["evidences"]
+                     if e["code"] == request.evidenceCode and e["scope"] == request.evidenceScope]
+            if found:
+                evidence = found[-1]
+                evidence["extracted"].update(request.fields)
+                if request.evidenceCode == "E8":
+                    self._flag_documented(state, evidence["extracted"])
+                cross = checks.upload_warnings(state, evidence["code"], evidence["scope"], evidence["extracted"])
+                evidence_info = {
+                    "code": evidence["code"], "nodeId": evidence["nodeId"], "scope": evidence["scope"],
+                    "area": evidence.get("area"), "equipo": evidence.get("equipo"),
+                    "count": evidence["count"], "extracted": evidence["extracted"],
+                }
 
-    def _completed(
-        self, evaluation_id: str, answers: Dict[str, str],
-        last_photo_result: Dict[str, object] | None = None,
-        cross_validation_warning: str | None = None,
+        if request.clarificationKey:
+            state.setdefault("clarifications", {})[request.clarificationKey] = request.clarificationAnswer or ""
+
+        follow = None
+        if evidence_info and not request.clarificationKey:
+            follow = checks.follow_ups(state, evidence_info["code"], evidence_info["extracted"])
+            cross = _without_covered(cross, follow)
+        return self._respond(request.evaluationId, state, last_evidence=evidence_info, cross_checks=cross,
+                             follow_ups=follow)
+
+    def _flag_documented(self, state: Dict[str, Any], extracted: Dict[str, Any]) -> None:
+        known = checks.known_ips(state)
+        for device in extracted.get("dispositivos") or []:
+            device["documentado"] = checks.is_documented(state, device, known)
+
+    # ---- internos ---------------------------------------------------------
+    def _geocode(self, state: Dict[str, Any]) -> None:
+        a = state["answers"]
+        state["answers"]["visita.ubicacion"] = geocode(a.get("P02") or a.get("P01", ""), a.get("P03"))
+
+    def _respond(
+        self, evaluation_id: str, state: Dict[str, Any],
+        validation_error: Optional[str] = None,
+        last_evidence: Optional[Dict[str, Any]] = None,
+        cross_checks: Optional[List[str]] = None,
+        processed_images: Optional[List[str]] = None,
+        follow_ups: Optional[List[Dict[str, Any]]] = None,
     ) -> ChatResponse:
-        proposal = self._generate(answers)
+        session = Session(state)
+        answered = len([k for k in state["answers"] if "." not in k])
+        done = bool(state["done"])
+        prompt = {} if done else session.prompt()
+        block_idx = prompt.get("blockIndex", len(BLOCK_ORDER)) if not done else len(BLOCK_ORDER)
+
+        proposal: Optional[ChatProposal] = None
+        if done:
+            proposal = self._generate(legacy_answers(state))
+            proposal.topology = build_state_topology(state)
+            proposal.topologyText = topology_to_text(proposal.topology)
+            answers = completed_answers(state)
+        else:
+            answers = partial_answers(state)
+
+        itype = prompt.get("inputType")
         return ChatResponse(
             evaluationId=evaluation_id,
-            currentStep=TOTAL_NODES,
-            currentQuestionKey=None,
-            currentQuestion=None,
-            currentInputType=None,
-            currentOptions=None,
-            answeredQuestions=len(answers),
-            totalQuestions=TOTAL_NODES,
-            progressPercent=100,
-            completed=True,
+            currentStep=answered,
+            currentQuestionKey=prompt.get("nodeId"),
+            currentQuestion=prompt.get("text"),
+            currentInputType=InputType(itype) if itype else None,
+            currentOptions=[o["label"] for o in prompt.get("options", [])] or None,
+            answeredQuestions=answered,
+            totalQuestions=len(BLOCK_ORDER),
+            progressPercent=100 if done else int((block_idx - 1) / len(BLOCK_ORDER) * 100),
+            completed=done,
             answers=answers,
             proposal=proposal,
-            lastPhotoResult=last_photo_result,
-            crossValidationWarning=cross_validation_warning,
+            state=json.dumps(state, ensure_ascii=False),
+            node=prompt or None,
+            validationError=validation_error,
+            lastEvidence=last_evidence,
+            crossChecks=cross_checks or [],
+            followUps=follow_ups or [],
+            processedImages=processed_images,
         )

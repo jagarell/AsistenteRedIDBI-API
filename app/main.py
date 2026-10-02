@@ -1,7 +1,7 @@
 from typing import Dict
 
 from fastapi import FastAPI
-from app.chat.nodes import NODES
+from app.chat.flow_engine import FLOW
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -74,4 +74,8 @@ def chat_nodes():
     """Metadata liviana (clave + pregunta) de los nodos del chat, para que el
     gateway pueda mostrar las respuestas guardadas con su texto de pregunta
     sin duplicar las preguntas en Java."""
-    return [{"key": node.key, "question": node.question} for node in NODES if not node.auto]
+    return [
+        {"key": node["field"], "question": node["text"]}
+        for node in FLOW.nodes.values()
+        if node["kind"] == "question" and "field" in node and "[" not in node["field"] and "{" not in node["text"]
+    ]

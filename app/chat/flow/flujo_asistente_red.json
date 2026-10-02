@@ -1,0 +1,2099 @@
+{
+  "flowId": "minuta_tecnica_red",
+  "version": "1.0.0",
+  "language": "es-PE",
+  "start": "P01",
+  "inputTypes": [
+    "TEXT",
+    "NUMBER",
+    "YES_NO",
+    "CHOICE",
+    "MULTI_SELECT",
+    "EVIDENCE"
+  ],
+  "nodeKinds": [
+    "question",
+    "evidence",
+    "alert",
+    "router",
+    "loop",
+    "subflow_call",
+    "summary"
+  ],
+  "yesNoValues": [
+    "SI",
+    "NO"
+  ],
+  "areas": [
+    {
+      "value": "SALON_1",
+      "label": "Salón 1"
+    },
+    {
+      "value": "SALON_2",
+      "label": "Salón 2"
+    },
+    {
+      "value": "TERRAZA",
+      "label": "Terraza"
+    },
+    {
+      "value": "BAR",
+      "label": "Bar"
+    },
+    {
+      "value": "CAJA",
+      "label": "Caja"
+    },
+    {
+      "value": "COCINA",
+      "label": "Cocina"
+    },
+    {
+      "value": "DESPACHO",
+      "label": "Despacho"
+    },
+    {
+      "value": "PIZZA",
+      "label": "Pizza"
+    },
+    {
+      "value": "BRASAS",
+      "label": "Brasas"
+    },
+    {
+      "value": "JUGOS",
+      "label": "Jugos"
+    },
+    {
+      "value": "ALMACEN",
+      "label": "Almacén"
+    },
+    {
+      "value": "OFICINA",
+      "label": "Oficina"
+    },
+    {
+      "value": "OTRO",
+      "label": "Otro"
+    }
+  ],
+  "derived": {
+    "areasSinImpresora": "P25 menos todas las áreas ya asignadas a una impresora en $registry.printers (se recalcula en cada paso)"
+  },
+  "registries": {
+    "printers": "Impresoras existentes (P27–P31) y nuevas (P32c). Campos: id, label, areas[], ubicacion, conexion, existing",
+    "actions": "Lista de siguientes acciones generadas por effects.addAction",
+    "alerts": "Alertas generadas por effects.addAlert y crossCheck"
+  },
+  "nodes": [
+    {
+      "id": "P01",
+      "kind": "question",
+      "block": "A",
+      "inputType": "TEXT",
+      "text": "¿Cuál es el nombre del cliente o razón social?",
+      "field": "visita.cliente",
+      "required": true,
+      "next": "P02",
+      "minuta": "datos_generales"
+    },
+    {
+      "id": "P02",
+      "kind": "question",
+      "block": "A",
+      "inputType": "TEXT",
+      "text": "¿Cuál es el nombre del local o sede?",
+      "field": "visita.local",
+      "required": true,
+      "next": "P03",
+      "minuta": "datos_generales"
+    },
+    {
+      "id": "P03",
+      "kind": "question",
+      "block": "A",
+      "inputType": "TEXT",
+      "text": "¿Cuál es la dirección del local?",
+      "field": "visita.direccion",
+      "required": true,
+      "next": "P04",
+      "minuta": "datos_generales"
+    },
+    {
+      "id": "P04",
+      "kind": "question",
+      "block": "A",
+      "inputType": "TEXT",
+      "text": "¿Quién es el contacto en el local? (nombre y cargo)",
+      "field": "visita.contacto",
+      "required": true,
+      "next": "P05",
+      "minuta": "asistentes"
+    },
+    {
+      "id": "P05",
+      "kind": "question",
+      "block": "A",
+      "inputType": "TEXT",
+      "text": "¿Cuál es el teléfono del contacto?",
+      "field": "visita.telefono",
+      "required": true,
+      "next": "P06",
+      "minuta": "datos_generales",
+      "validation": {
+        "regex": "^[0-9 +]{6,15}$"
+      }
+    },
+    {
+      "id": "P06",
+      "kind": "question",
+      "block": "A",
+      "inputType": "TEXT",
+      "text": "Fecha de la visita",
+      "field": "visita.fecha",
+      "required": true,
+      "next": "P07",
+      "minuta": "datos_generales",
+      "help": "Autocompletar con la fecha actual; el técnico puede corregirla."
+    },
+    {
+      "id": "P07",
+      "kind": "question",
+      "block": "A",
+      "inputType": "TEXT",
+      "text": "Técnico responsable",
+      "field": "visita.tecnico",
+      "required": true,
+      "next": "P08",
+      "minuta": "datos_generales",
+      "help": "Autocompletar con el usuario logueado."
+    },
+    {
+      "id": "P08",
+      "kind": "question",
+      "block": "A",
+      "inputType": "CHOICE",
+      "text": "¿Cuál es el motivo de la visita?",
+      "field": "visita.motivo",
+      "required": true,
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "eq": [
+                "$P08",
+                "OTRO"
+              ]
+            },
+            "goto": "P08a"
+          }
+        ],
+        "default": "P09"
+      },
+      "options": [
+        {
+          "value": "IMPLEMENTACION",
+          "label": "Visita de implementación"
+        },
+        {
+          "value": "OTRO",
+          "label": "Otro"
+        }
+      ],
+      "minuta": "datos_generales"
+    },
+    {
+      "id": "P08a",
+      "kind": "question",
+      "block": "A",
+      "inputType": "TEXT",
+      "text": "¿Cuál es el motivo de la visita?",
+      "field": "visita.motivoOtro",
+      "required": true,
+      "next": "P09",
+      "minuta": "datos_generales"
+    },
+    {
+      "id": "P09",
+      "kind": "question",
+      "block": "B",
+      "inputType": "CHOICE",
+      "text": "¿Qué tipo de negocio es?",
+      "field": "negocio.tipo",
+      "required": true,
+      "next": "P10",
+      "options": [
+        {
+          "value": "RESTAURANTE",
+          "label": "Restaurante"
+        },
+        {
+          "value": "FAST_FOOD",
+          "label": "Fast food"
+        },
+        {
+          "value": "CAFETERIA",
+          "label": "Cafetería"
+        },
+        {
+          "value": "BAR",
+          "label": "Bar"
+        },
+        {
+          "value": "DISCOTECA",
+          "label": "Discoteca"
+        },
+        {
+          "value": "MINIMARKET",
+          "label": "Minimarket"
+        },
+        {
+          "value": "RETAIL",
+          "label": "Retail"
+        },
+        {
+          "value": "HOSPEDAJE",
+          "label": "Hospedaje"
+        },
+        {
+          "value": "OTRO",
+          "label": "Otro"
+        }
+      ],
+      "minuta": "antecedentes"
+    },
+    {
+      "id": "P10",
+      "kind": "question",
+      "block": "B",
+      "inputType": "NUMBER",
+      "text": "¿Cuántos pisos tiene el negocio?",
+      "field": "negocio.pisos",
+      "required": true,
+      "next": "P11",
+      "minuta": "antecedentes",
+      "validation": {
+        "min": 1,
+        "max": 20
+      }
+    },
+    {
+      "id": "P11",
+      "kind": "question",
+      "block": "B",
+      "inputType": "MULTI_SELECT",
+      "text": "¿Qué áreas tiene el local?",
+      "field": "negocio.areas",
+      "required": true,
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "gt": [
+                "$P10",
+                1
+              ]
+            },
+            "goto": "L_PISOS"
+          }
+        ],
+        "default": "P12"
+      },
+      "options": [
+        {
+          "value": "SALON_1",
+          "label": "Salón 1"
+        },
+        {
+          "value": "SALON_2",
+          "label": "Salón 2"
+        },
+        {
+          "value": "TERRAZA",
+          "label": "Terraza"
+        },
+        {
+          "value": "BAR",
+          "label": "Bar"
+        },
+        {
+          "value": "CAJA",
+          "label": "Caja"
+        },
+        {
+          "value": "COCINA",
+          "label": "Cocina"
+        },
+        {
+          "value": "DESPACHO",
+          "label": "Despacho"
+        },
+        {
+          "value": "PIZZA",
+          "label": "Pizza"
+        },
+        {
+          "value": "BRASAS",
+          "label": "Brasas"
+        },
+        {
+          "value": "JUGOS",
+          "label": "Jugos"
+        },
+        {
+          "value": "ALMACEN",
+          "label": "Almacén"
+        },
+        {
+          "value": "OFICINA",
+          "label": "Oficina"
+        },
+        {
+          "value": "OTRO",
+          "label": "Otro"
+        }
+      ],
+      "minuta": "antecedentes",
+      "help": "Si marca Otro, pedir el nombre del área (texto libre) y agregarla a la lista dinámica de áreas.",
+      "validation": {
+        "minSelected": 1
+      }
+    },
+    {
+      "id": "L_PISOS",
+      "kind": "loop",
+      "block": "B",
+      "over": {
+        "list": "$P11"
+      },
+      "itemLabel": "{item.label}",
+      "body": "P11a",
+      "exit": "P12"
+    },
+    {
+      "id": "P11a",
+      "kind": "question",
+      "block": "B",
+      "inputType": "CHOICE",
+      "text": "¿En qué piso está el área {item.label}?",
+      "field": "negocio.areaPiso[{item.value}]",
+      "required": true,
+      "next": "@loop.next",
+      "options": {
+        "range": {
+          "from": 1,
+          "to": "$P10",
+          "label": "Piso {n}"
+        }
+      },
+      "minuta": "antecedentes",
+      "topology": {
+        "groupBy": "piso"
+      }
+    },
+    {
+      "id": "P12",
+      "kind": "question",
+      "block": "B",
+      "inputType": "NUMBER",
+      "text": "¿Cuántas cajas hay?",
+      "field": "negocio.cajas",
+      "required": true,
+      "next": "P13",
+      "minuta": "antecedentes",
+      "validation": {
+        "min": 0,
+        "max": 20
+      }
+    },
+    {
+      "id": "P13",
+      "kind": "question",
+      "block": "C",
+      "inputType": "CHOICE",
+      "text": "¿Quién es el proveedor de internet?",
+      "field": "internet.proveedor",
+      "required": true,
+      "next": "P14",
+      "options": [
+        {
+          "value": "MOVISTAR",
+          "label": "Movistar"
+        },
+        {
+          "value": "CLARO",
+          "label": "Claro"
+        },
+        {
+          "value": "ENTEL",
+          "label": "Entel"
+        },
+        {
+          "value": "WIN",
+          "label": "Win"
+        },
+        {
+          "value": "OTRO",
+          "label": "Otro"
+        }
+      ],
+      "minuta": "internet",
+      "topology": {
+        "node": "internet"
+      }
+    },
+    {
+      "id": "P14",
+      "kind": "question",
+      "block": "C",
+      "inputType": "CHOICE",
+      "text": "¿Qué tipo de conexión tiene?",
+      "field": "internet.tipoConexion",
+      "required": true,
+      "next": "P15",
+      "options": [
+        {
+          "value": "FIBRA",
+          "label": "Fibra"
+        },
+        {
+          "value": "COBRE",
+          "label": "Cobre"
+        },
+        {
+          "value": "INALAMBRICA",
+          "label": "Inalámbrica"
+        },
+        {
+          "value": "NO_SE",
+          "label": "No sé"
+        }
+      ],
+      "minuta": "internet"
+    },
+    {
+      "id": "P15",
+      "kind": "question",
+      "block": "C",
+      "inputType": "NUMBER",
+      "text": "¿Cuál es la velocidad contratada? (Mbps)",
+      "field": "internet.velocidadContratada",
+      "required": true,
+      "next": "P16",
+      "minuta": "internet",
+      "validation": {
+        "min": 1,
+        "max": 10000
+      }
+    },
+    {
+      "id": "P16",
+      "kind": "question",
+      "block": "C",
+      "inputType": "YES_NO",
+      "text": "¿Hay una segunda línea de internet de respaldo?",
+      "field": "internet.respaldo",
+      "required": true,
+      "next": "P17",
+      "minuta": "internet"
+    },
+    {
+      "id": "P17",
+      "kind": "question",
+      "block": "C",
+      "inputType": "YES_NO",
+      "text": "¿Hubo caídas de internet en el último mes?",
+      "field": "internet.caidas",
+      "required": true,
+      "next": "P18",
+      "minuta": "antecedentes"
+    },
+    {
+      "id": "P18",
+      "kind": "question",
+      "block": "C",
+      "inputType": "CHOICE",
+      "text": "¿En qué área está el router?",
+      "field": "internet.ubicacionRouter",
+      "required": true,
+      "next": "P19",
+      "options": {
+        "from": "$P11"
+      },
+      "minuta": "internet",
+      "topology": {
+        "node": "router",
+        "attr": "area"
+      }
+    },
+    {
+      "id": "P19",
+      "kind": "evidence",
+      "evidenceCode": "E1",
+      "block": "C",
+      "inputType": "EVIDENCE",
+      "text": "Sube la captura del speedtest (hecho desde el local).",
+      "field": "evidencias.speedtest",
+      "required": true,
+      "accept": [
+        "image/jpeg",
+        "image/png"
+      ],
+      "maxFiles": 3,
+      "aiExtract": [
+        "bajadaMbps",
+        "subidaMbps",
+        "pingMs",
+        "proveedor",
+        "servidor",
+        "fechaHora"
+      ],
+      "minuta": "evidencias",
+      "next": "P20",
+      "effects": [
+        {
+          "crossCheck": "speedtest.proveedor vs P13",
+          "onMismatch": "Proveedor del speedtest distinto al indicado: confirmar."
+        },
+        {
+          "crossCheck": "speedtest.bajadaMbps < 0.5 * P15",
+          "onTrue": "Velocidad medida menor al 50% de la contratada."
+        }
+      ]
+    },
+    {
+      "id": "P20",
+      "kind": "evidence",
+      "evidenceCode": "E2",
+      "block": "C",
+      "inputType": "EVIDENCE",
+      "text": "Sube una foto del router donde se vea su ubicación.",
+      "field": "evidencias.router",
+      "required": true,
+      "accept": [
+        "image/jpeg",
+        "image/png"
+      ],
+      "maxFiles": 3,
+      "aiExtract": [
+        "marca",
+        "modelo",
+        "ubicacionVisual"
+      ],
+      "minuta": "evidencias",
+      "next": "P21"
+    },
+    {
+      "id": "P21",
+      "kind": "evidence",
+      "evidenceCode": "E3",
+      "block": "C",
+      "inputType": "EVIDENCE",
+      "text": "Sube una foto de la etiqueta del router o switch.",
+      "field": "evidencias.etiquetaRouter",
+      "required": true,
+      "accept": [
+        "image/jpeg",
+        "image/png"
+      ],
+      "maxFiles": 3,
+      "aiExtract": [
+        "marca",
+        "modelo",
+        "numeroSerie",
+        "mac"
+      ],
+      "minuta": "evidencias",
+      "next": "P22_GATE",
+      "help": "Al procesar, OCULTAR (blur) usuario, contraseña, SSID, clave WLAN y código QR antes de guardar o mostrar."
+    },
+    {
+      "id": "P22_GATE",
+      "kind": "router",
+      "block": "C",
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "eq": [
+                "$P12",
+                0
+              ]
+            },
+            "goto": "P25"
+          }
+        ],
+        "default": "L_CAJAS"
+      }
+    },
+    {
+      "id": "L_CAJAS",
+      "kind": "loop",
+      "block": "D",
+      "over": {
+        "count": "$P12"
+      },
+      "itemLabel": "Caja {i}",
+      "body": "P22",
+      "exit": "P25"
+    },
+    {
+      "id": "P22",
+      "kind": "question",
+      "block": "D",
+      "inputType": "CHOICE",
+      "text": "Caja {i}: ¿hay una PC o laptop?",
+      "field": "cajas[{i}].equipo",
+      "required": true,
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "eq": [
+                "$P22",
+                "NO_HAY"
+              ]
+            },
+            "goto": "A_RASPBERRY"
+          }
+        ],
+        "default": "P23"
+      },
+      "options": [
+        {
+          "value": "PC",
+          "label": "PC"
+        },
+        {
+          "value": "LAPTOP",
+          "label": "Laptop"
+        },
+        {
+          "value": "NO_HAY",
+          "label": "No hay"
+        }
+      ],
+      "minuta": "equipos_caja",
+      "topology": {
+        "node": "computer",
+        "label": "PC Caja {i}",
+        "skipIf": {
+          "eq": [
+            "$P22",
+            "NO_HAY"
+          ]
+        }
+      }
+    },
+    {
+      "id": "A_RASPBERRY",
+      "kind": "alert",
+      "block": "D",
+      "severity": "warning",
+      "text": "No hay un equipo en Caja {i} para el sistema de impresiones. Recomienda al cliente instalar un Raspberry para el sistema de impresiones.",
+      "requiresAck": true,
+      "next": "P22a",
+      "effects": [
+        {
+          "addAction": "Caja {i}: se recomendó Raspberry para el sistema de impresiones."
+        }
+      ]
+    },
+    {
+      "id": "P22a",
+      "kind": "question",
+      "block": "D",
+      "inputType": "YES_NO",
+      "text": "¿El cliente ya cuenta con un Raspberry?",
+      "field": "cajas[{i}].tieneRaspberry",
+      "required": true,
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "eq": [
+                "$P22a",
+                "SI"
+              ]
+            },
+            "goto": "P22c"
+          }
+        ],
+        "default": "P22b"
+      },
+      "minuta": "equipos_caja"
+    },
+    {
+      "id": "P22b",
+      "kind": "question",
+      "block": "D",
+      "inputType": "CHOICE",
+      "text": "¿Qué adquirirá el cliente para el sistema de impresiones?",
+      "field": "cajas[{i}].adquirira",
+      "required": true,
+      "next": "U_CAJA",
+      "options": [
+        {
+          "value": "RASPBERRY",
+          "label": "Raspberry"
+        },
+        {
+          "value": "LAPTOP",
+          "label": "Laptop"
+        },
+        {
+          "value": "PC",
+          "label": "PC"
+        }
+      ],
+      "minuta": "siguientes_acciones",
+      "effects": [
+        {
+          "addAction": "Caja {i}: el cliente adquirirá {answer.label} para el sistema de impresiones."
+        }
+      ],
+      "topology": {
+        "node": "computer",
+        "label": "{answer.label} Caja {i} (por adquirir)",
+        "pending": true
+      }
+    },
+    {
+      "id": "P22c",
+      "kind": "question",
+      "block": "D",
+      "inputType": "CHOICE",
+      "text": "¿Cómo se conecta el Raspberry a la red?",
+      "field": "cajas[{i}].raspberryConexion",
+      "required": true,
+      "next": "@loop.next",
+      "options": [
+        {
+          "value": "CABLE_RED",
+          "label": "Cable de red"
+        },
+        {
+          "value": "WIFI",
+          "label": "WiFi"
+        }
+      ],
+      "minuta": "equipos_caja",
+      "topology": {
+        "node": "computer",
+        "label": "Raspberry Caja {i}",
+        "linkType": "$P22c"
+      }
+    },
+    {
+      "id": "U_CAJA",
+      "kind": "subflow_call",
+      "block": "D",
+      "subflow": "U",
+      "params": {
+        "area": "CAJA",
+        "equipo": "{P22b.label} Caja {i}",
+        "needsNetwork": true,
+        "needsPower": true
+      },
+      "next": "@loop.next"
+    },
+    {
+      "id": "P23",
+      "kind": "question",
+      "block": "D",
+      "inputType": "CHOICE",
+      "text": "Caja {i}: ¿la computadora va por cable o por WiFi?",
+      "field": "cajas[{i}].conexion",
+      "required": true,
+      "next": "P24",
+      "options": [
+        {
+          "value": "CABLE_RED",
+          "label": "Cable de red"
+        },
+        {
+          "value": "WIFI",
+          "label": "WiFi"
+        }
+      ],
+      "minuta": "equipos_caja",
+      "effects": [
+        {
+          "if": {
+            "eq": [
+              "$P23",
+              "WIFI"
+            ]
+          },
+          "addAlert": "PC de Caja {i} por WiFi: recomendar cable de red para el sistema de impresiones."
+        }
+      ],
+      "topology": {
+        "linkType": "$P23"
+      }
+    },
+    {
+      "id": "P24",
+      "kind": "evidence",
+      "evidenceCode": "E4",
+      "block": "D",
+      "inputType": "EVIDENCE",
+      "text": "Caja {i}: sube la captura de ipconfig.",
+      "field": "evidencias.ipconfig[{i}]",
+      "required": true,
+      "accept": [
+        "image/jpeg",
+        "image/png"
+      ],
+      "maxFiles": 3,
+      "aiExtract": [
+        "ipv4",
+        "mascara",
+        "puertaEnlace",
+        "adaptador",
+        "mac"
+      ],
+      "minuta": "evidencias",
+      "next": "@loop.next",
+      "effects": [
+        {
+          "crossCheck": "ipconfig.adaptador vs P23",
+          "onMismatch": "El ipconfig muestra otro tipo de adaptador que el indicado."
+        }
+      ]
+    },
+    {
+      "id": "P25",
+      "kind": "question",
+      "block": "E",
+      "inputType": "MULTI_SELECT",
+      "text": "¿Qué áreas necesitan imprimir comandas o tickets?",
+      "field": "impresion.areas",
+      "required": true,
+      "next": "P26",
+      "options": {
+        "from": "$P11"
+      },
+      "minuta": "impresoras",
+      "validation": {
+        "minSelected": 1
+      }
+    },
+    {
+      "id": "P26",
+      "kind": "question",
+      "block": "E",
+      "inputType": "NUMBER",
+      "text": "¿Cuántas impresoras hay actualmente?",
+      "field": "impresion.cantidad",
+      "required": true,
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "eq": [
+                "$P26",
+                0
+              ]
+            },
+            "goto": "P32_GATE"
+          }
+        ],
+        "default": "L_IMPRESORAS"
+      },
+      "minuta": "impresoras",
+      "validation": {
+        "min": 0,
+        "max": 30
+      }
+    },
+    {
+      "id": "L_IMPRESORAS",
+      "kind": "loop",
+      "block": "E",
+      "over": {
+        "count": "$P26"
+      },
+      "itemLabel": "Impresora {i}",
+      "body": "P27",
+      "exit": "P32_GATE"
+    },
+    {
+      "id": "P27",
+      "kind": "question",
+      "block": "E",
+      "inputType": "MULTI_SELECT",
+      "text": "Impresora {i}: ¿qué áreas imprimen en esta impresora?",
+      "field": "impresoras[{i}].areas",
+      "required": true,
+      "next": "P28",
+      "options": {
+        "from": "$derived.areasSinImpresora"
+      },
+      "minuta": "impresoras",
+      "help": "Si marca más de un área (ej. Bar + Jugos) la impresora es COMPARTIDA: un solo nodo en el mapa con la etiqueta 'Bar + Jugos'.",
+      "effects": [
+        {
+          "registerPrinter": {
+            "index": "{i}",
+            "areas": "$P27",
+            "existing": true
+          }
+        }
+      ],
+      "validation": {
+        "minSelected": 1
+      }
+    },
+    {
+      "id": "P28",
+      "kind": "question",
+      "block": "E",
+      "inputType": "CHOICE",
+      "text": "Impresora {i}: ¿en qué área está físicamente?",
+      "field": "impresoras[{i}].ubicacion",
+      "required": true,
+      "next": "P29",
+      "options": {
+        "from": "$P27",
+        "plus": [
+          {
+            "value": "OTRA",
+            "label": "Otra"
+          }
+        ]
+      },
+      "minuta": "impresoras"
+    },
+    {
+      "id": "P29",
+      "kind": "question",
+      "block": "E",
+      "inputType": "CHOICE",
+      "text": "Impresora {i}: ¿cuál es la marca?",
+      "field": "impresoras[{i}].marca",
+      "required": true,
+      "next": "P30",
+      "options": [
+        {
+          "value": "EPSON",
+          "label": "Epson"
+        },
+        {
+          "value": "BIXOLON",
+          "label": "Bixolon"
+        },
+        {
+          "value": "STAR",
+          "label": "Star"
+        },
+        {
+          "value": "OTRO",
+          "label": "Otro"
+        }
+      ],
+      "minuta": "impresoras"
+    },
+    {
+      "id": "P30",
+      "kind": "question",
+      "block": "E",
+      "inputType": "CHOICE",
+      "text": "Impresora {i}: ¿cómo se conecta?",
+      "field": "impresoras[{i}].conexion",
+      "required": true,
+      "next": "P31",
+      "options": [
+        {
+          "value": "CABLE_RED",
+          "label": "Cable de red"
+        },
+        {
+          "value": "USB",
+          "label": "USB"
+        },
+        {
+          "value": "WIFI",
+          "label": "WiFi"
+        },
+        {
+          "value": "BLUETOOTH",
+          "label": "Bluetooth"
+        }
+      ],
+      "minuta": "impresoras",
+      "topology": {
+        "node": "printer",
+        "label": "Impresora {i} – {P27.labels.join(' + ')}",
+        "linkType": "$P30"
+      }
+    },
+    {
+      "id": "P31",
+      "kind": "evidence",
+      "evidenceCode": "E5",
+      "block": "E",
+      "inputType": "EVIDENCE",
+      "text": "Impresora {i}: sube el ticket de autotest o la etiqueta.",
+      "field": "evidencias.impresora[{i}]",
+      "required": true,
+      "accept": [
+        "image/jpeg",
+        "image/png"
+      ],
+      "maxFiles": 3,
+      "aiExtract": [
+        "marca",
+        "modelo",
+        "numeroSerie",
+        "ip",
+        "mac"
+      ],
+      "minuta": "evidencias",
+      "next": "@loop.next",
+      "effects": [
+        {
+          "crossCheck": "impresora.mac in E8.dispositivos",
+          "onFalse": "La MAC de la impresora no aparece en el escáner de IP."
+        }
+      ]
+    },
+    {
+      "id": "P32_GATE",
+      "kind": "router",
+      "block": "E",
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "notEmpty": "$derived.areasSinImpresora"
+            },
+            "goto": "A_SIN_IMPRESORA"
+          }
+        ],
+        "default": "P33"
+      }
+    },
+    {
+      "id": "A_SIN_IMPRESORA",
+      "kind": "alert",
+      "block": "E",
+      "severity": "warning",
+      "text": "Estas áreas no tienen impresora asignada: {derived.areasSinImpresora.labels}.",
+      "requiresAck": true,
+      "next": "L_AREAS_SIN_IMP"
+    },
+    {
+      "id": "L_AREAS_SIN_IMP",
+      "kind": "loop",
+      "block": "E",
+      "over": {
+        "list": "$derived.areasSinImpresora",
+        "snapshot": true
+      },
+      "itemLabel": "{item.label}",
+      "body": "P32",
+      "exit": "P33"
+    },
+    {
+      "id": "P32",
+      "kind": "question",
+      "block": "E",
+      "inputType": "CHOICE",
+      "text": "{item.label}: ¿cómo se resolverá la impresión?",
+      "field": "impresionPendiente[{item.value}].solucion",
+      "required": true,
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "eq": [
+                "$P32",
+                "COMPARTIR"
+              ]
+            },
+            "goto": "P32a"
+          }
+        ],
+        "default": "P32b"
+      },
+      "options": [
+        {
+          "value": "COMPARTIR",
+          "label": "Compartirá una impresora existente"
+        },
+        {
+          "value": "NUEVA",
+          "label": "Se instalará una impresora nueva"
+        }
+      ],
+      "minuta": "impresoras"
+    },
+    {
+      "id": "P32a",
+      "kind": "question",
+      "block": "E",
+      "inputType": "CHOICE",
+      "text": "{item.label}: ¿con qué impresora compartirá?",
+      "field": "impresionPendiente[{item.value}].impresora",
+      "required": true,
+      "next": "@loop.next",
+      "options": {
+        "from": "$registry.printers"
+      },
+      "minuta": "impresoras",
+      "help": "La lista incluye las impresoras existentes y las nuevas registradas en vueltas anteriores de este loop.",
+      "effects": [
+        {
+          "addAreaToPrinter": {
+            "printer": "$P32a",
+            "area": "{item.value}"
+          }
+        }
+      ]
+    },
+    {
+      "id": "P32b",
+      "kind": "question",
+      "block": "E",
+      "inputType": "CHOICE",
+      "text": "{item.label}: ¿en qué área se colocará la impresora nueva?",
+      "field": "impresionPendiente[{item.value}].ubicacion",
+      "required": true,
+      "next": "P32c",
+      "options": {
+        "from": "$P11"
+      },
+      "minuta": "impresoras",
+      "help": "Preseleccionar {item.value}."
+    },
+    {
+      "id": "P32c",
+      "kind": "question",
+      "block": "E",
+      "inputType": "CHOICE",
+      "text": "¿Cómo se conectará la impresora nueva?",
+      "field": "impresionPendiente[{item.value}].conexion",
+      "required": true,
+      "next": "U_IMPRESORA",
+      "options": [
+        {
+          "value": "CABLE_RED",
+          "label": "Cable de red"
+        },
+        {
+          "value": "USB",
+          "label": "USB"
+        },
+        {
+          "value": "WIFI",
+          "label": "WiFi"
+        }
+      ],
+      "minuta": "impresoras",
+      "effects": [
+        {
+          "registerPrinter": {
+            "areas": [
+              "{item.value}"
+            ],
+            "ubicacion": "$P32b",
+            "conexion": "$P32c",
+            "existing": false
+          }
+        },
+        {
+          "addAction": "Instalar impresora nueva para {item.label} en {P32b.label}."
+        }
+      ],
+      "topology": {
+        "node": "printer",
+        "label": "Impresora nueva – {item.label}",
+        "pending": true,
+        "linkType": "$P32c"
+      }
+    },
+    {
+      "id": "U_IMPRESORA",
+      "kind": "subflow_call",
+      "block": "E",
+      "subflow": "U",
+      "params": {
+        "area": "$P32b",
+        "equipo": "Impresora nueva ({item.label})",
+        "needsNetwork": {
+          "eq": [
+            "$P32c",
+            "CABLE_RED"
+          ]
+        },
+        "needsPower": true
+      },
+      "next": "@loop.next"
+    },
+    {
+      "id": "P33",
+      "kind": "question",
+      "block": "F",
+      "inputType": "YES_NO",
+      "text": "¿Hay tomas de energía cerca de los equipos de red?",
+      "field": "energia.tomasCerca",
+      "required": true,
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "eq": [
+                "$P33",
+                "NO"
+              ]
+            },
+            "goto": "U_ENERGIA"
+          }
+        ],
+        "default": "P34"
+      },
+      "minuta": "energia"
+    },
+    {
+      "id": "U_ENERGIA",
+      "kind": "subflow_call",
+      "block": "F",
+      "subflow": "U",
+      "params": {
+        "area": "$P18",
+        "equipo": "Router / equipos de red",
+        "needsNetwork": false,
+        "needsPower": true,
+        "skipNearQuestion": true
+      },
+      "next": "P34"
+    },
+    {
+      "id": "P34",
+      "kind": "question",
+      "block": "F",
+      "inputType": "YES_NO",
+      "text": "¿Los equipos comparten una misma toma?",
+      "field": "energia.tomaCompartida",
+      "required": true,
+      "next": "P35",
+      "minuta": "energia"
+    },
+    {
+      "id": "P35",
+      "kind": "question",
+      "block": "F",
+      "inputType": "YES_NO",
+      "text": "¿Se cuenta con energía de respaldo, como un UPS?",
+      "field": "energia.ups",
+      "required": true,
+      "next": "P36",
+      "minuta": "energia",
+      "effects": [
+        {
+          "if": {
+            "eq": [
+              "$P35",
+              "NO"
+            ]
+          },
+          "addAction": "Recomendar UPS para router e impresoras."
+        }
+      ]
+    },
+    {
+      "id": "P36",
+      "kind": "question",
+      "block": "F",
+      "inputType": "YES_NO",
+      "text": "¿Hay extensiones donde va conectado algún equipo de red o impresora?",
+      "field": "energia.extensiones",
+      "required": true,
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "eq": [
+                "$P36",
+                "SI"
+              ]
+            },
+            "goto": "P36a"
+          }
+        ],
+        "default": "P37"
+      },
+      "minuta": "energia"
+    },
+    {
+      "id": "P36a",
+      "kind": "question",
+      "block": "F",
+      "inputType": "MULTI_SELECT",
+      "text": "¿Qué equipos están conectados a la extensión?",
+      "field": "energia.extensionEquipos",
+      "required": true,
+      "next": "P37",
+      "options": [
+        {
+          "value": "ROUTER",
+          "label": "Router"
+        },
+        {
+          "value": "SWITCH",
+          "label": "Switch"
+        },
+        {
+          "value": "ACCESS_POINT",
+          "label": "Access point"
+        },
+        {
+          "value": "IMPRESORA",
+          "label": "Impresora"
+        },
+        {
+          "value": "PC",
+          "label": "PC"
+        },
+        {
+          "value": "RASPBERRY",
+          "label": "Raspberry"
+        }
+      ],
+      "minuta": "energia",
+      "effects": [
+        {
+          "addAction": "Pasar {P36a.labels} de la extensión a una toma directa o UPS."
+        }
+      ]
+    },
+    {
+      "id": "P37",
+      "kind": "question",
+      "block": "G",
+      "inputType": "NUMBER",
+      "text": "¿Cuántos puntos de red hay?",
+      "field": "cableado.puntos",
+      "required": true,
+      "next": "P38",
+      "minuta": "cableado",
+      "validation": {
+        "min": 0,
+        "max": 200
+      }
+    },
+    {
+      "id": "P38",
+      "kind": "question",
+      "block": "G",
+      "inputType": "YES_NO",
+      "text": "¿Los puntos de red llegan a todas las áreas que se necesitan?",
+      "field": "cableado.cobertura",
+      "required": true,
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "eq": [
+                "$P38",
+                "NO"
+              ]
+            },
+            "goto": "P38a"
+          }
+        ],
+        "default": "P39"
+      },
+      "minuta": "cableado"
+    },
+    {
+      "id": "P38a",
+      "kind": "question",
+      "block": "G",
+      "inputType": "MULTI_SELECT",
+      "text": "¿Qué áreas no tienen punto de red?",
+      "field": "cableado.areasSinPunto",
+      "required": true,
+      "next": "L_AREAS_SIN_PUNTO",
+      "options": {
+        "from": "$P11"
+      },
+      "minuta": "cableado",
+      "validation": {
+        "minSelected": 1
+      }
+    },
+    {
+      "id": "L_AREAS_SIN_PUNTO",
+      "kind": "loop",
+      "block": "G",
+      "over": {
+        "list": "$P38a"
+      },
+      "itemLabel": "{item.label}",
+      "body": "U_RED",
+      "exit": "P39"
+    },
+    {
+      "id": "U_RED",
+      "kind": "subflow_call",
+      "block": "G",
+      "subflow": "U",
+      "params": {
+        "area": "{item.value}",
+        "equipo": "Punto de red – {item.label}",
+        "needsNetwork": true,
+        "needsPower": false,
+        "skipNearQuestion": true
+      },
+      "next": "@loop.next"
+    },
+    {
+      "id": "P39",
+      "kind": "question",
+      "block": "G",
+      "inputType": "CHOICE",
+      "text": "¿Qué cable de red usan?",
+      "field": "cableado.tipoCable",
+      "required": true,
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "gt": [
+                "$P10",
+                1
+              ]
+            },
+            "goto": "P39a"
+          }
+        ],
+        "default": "P40"
+      },
+      "options": [
+        {
+          "value": "CAT5E_INT",
+          "label": "Interior Cat5e"
+        },
+        {
+          "value": "CAT6_INT",
+          "label": "Interior Cat6"
+        },
+        {
+          "value": "EXTERIOR",
+          "label": "Cable exterior"
+        },
+        {
+          "value": "NO_SE",
+          "label": "No sé"
+        }
+      ],
+      "minuta": "cableado"
+    },
+    {
+      "id": "P39a",
+      "kind": "question",
+      "block": "G",
+      "inputType": "CHOICE",
+      "text": "¿Cómo pasa el cable de red entre pisos?",
+      "field": "cableado.entrePisos",
+      "required": true,
+      "next": "P40",
+      "options": [
+        {
+          "value": "DUCTO",
+          "label": "Por ducto o canaleta"
+        },
+        {
+          "value": "EXPUESTO",
+          "label": "Expuesto por pared o escalera"
+        },
+        {
+          "value": "WIFI",
+          "label": "No pasa, el otro piso va por WiFi"
+        },
+        {
+          "value": "NO_SE",
+          "label": "No sé"
+        }
+      ],
+      "minuta": "cableado"
+    },
+    {
+      "id": "P40",
+      "kind": "question",
+      "block": "G",
+      "inputType": "CHOICE",
+      "text": "¿Cómo está el gabinete?",
+      "field": "cableado.gabinete",
+      "required": true,
+      "next": "P41",
+      "options": [
+        {
+          "value": "NO_HAY",
+          "label": "No hay"
+        },
+        {
+          "value": "ORDENADO",
+          "label": "Ordenado"
+        },
+        {
+          "value": "ORDENADO_ROTULADO",
+          "label": "Ordenado y rotulado"
+        },
+        {
+          "value": "DESORDENADO",
+          "label": "Desordenado o con cables"
+        }
+      ],
+      "minuta": "cableado"
+    },
+    {
+      "id": "P41",
+      "kind": "question",
+      "block": "G",
+      "inputType": "YES_NO",
+      "text": "¿Algún equipo está expuesto a calor o grasa?",
+      "field": "cableado.calorGrasa",
+      "required": true,
+      "next": "P42",
+      "minuta": "cableado"
+    },
+    {
+      "id": "P42",
+      "kind": "evidence",
+      "evidenceCode": "E6",
+      "block": "G",
+      "inputType": "EVIDENCE",
+      "text": "Sube fotos de los puntos de red y las tomas.",
+      "field": "evidencias.puntosTomas",
+      "required": true,
+      "accept": [
+        "image/jpeg",
+        "image/png"
+      ],
+      "maxFiles": 3,
+      "aiExtract": [
+        "estadoCableado",
+        "rotulado",
+        "observaciones"
+      ],
+      "minuta": "evidencias",
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "eq": [
+                "$P36",
+                "SI"
+              ]
+            },
+            "goto": "P43"
+          }
+        ],
+        "default": "P45"
+      }
+    },
+    {
+      "id": "P43",
+      "kind": "question",
+      "block": "G",
+      "inputType": "CHOICE",
+      "text": "¿Dónde está la extensión de energía?",
+      "field": "energia.extensionUbicacion",
+      "required": true,
+      "next": "P44",
+      "options": {
+        "from": "$P11"
+      },
+      "minuta": "energia"
+    },
+    {
+      "id": "P44",
+      "kind": "evidence",
+      "evidenceCode": "E7",
+      "block": "G",
+      "inputType": "EVIDENCE",
+      "text": "Sube una foto de la extensión de energía.",
+      "field": "evidencias.extension",
+      "required": true,
+      "accept": [
+        "image/jpeg",
+        "image/png"
+      ],
+      "maxFiles": 3,
+      "aiExtract": [
+        "equiposConectados",
+        "estado",
+        "riesgo"
+      ],
+      "minuta": "evidencias",
+      "next": "P45"
+    },
+    {
+      "id": "P45",
+      "kind": "question",
+      "block": "H",
+      "inputType": "YES_NO",
+      "text": "¿Hay access points o repetidores?",
+      "field": "wifi.accessPoints",
+      "required": true,
+      "next": "P46",
+      "minuta": "red_inalambrica",
+      "topology": {
+        "node": "access_point",
+        "skipIf": {
+          "eq": [
+            "$P45",
+            "NO"
+          ]
+        }
+      }
+    },
+    {
+      "id": "P46",
+      "kind": "question",
+      "block": "H",
+      "inputType": "MULTI_SELECT",
+      "text": "¿Hay zonas sin señal WiFi?",
+      "field": "wifi.zonasSinSenal",
+      "required": true,
+      "next": "P47",
+      "options": {
+        "from": "$P11",
+        "plus": [
+          {
+            "value": "NINGUNA",
+            "label": "Ninguna"
+          }
+        ]
+      },
+      "minuta": "red_inalambrica"
+    },
+    {
+      "id": "P47",
+      "kind": "question",
+      "block": "H",
+      "inputType": "YES_NO",
+      "text": "¿Hay cámaras de seguridad conectadas a la red?",
+      "field": "red.camaras",
+      "required": true,
+      "next": "P48",
+      "minuta": "red_inalambrica",
+      "topology": {
+        "node": "camera",
+        "skipIf": {
+          "eq": [
+            "$P47",
+            "NO"
+          ]
+        }
+      }
+    },
+    {
+      "id": "P48",
+      "kind": "evidence",
+      "evidenceCode": "E8",
+      "block": "H",
+      "inputType": "EVIDENCE",
+      "text": "Sube la captura del escáner de IP.",
+      "field": "evidencias.escanerIp",
+      "required": true,
+      "accept": [
+        "image/jpeg",
+        "image/png"
+      ],
+      "maxFiles": 3,
+      "aiExtract": [
+        "dispositivos[ip, mac, fabricante, nombre]"
+      ],
+      "minuta": "evidencias",
+      "next": "P49",
+      "effects": [
+        {
+          "crossCheck": "E5.mac in dispositivos",
+          "onFalse": "Alguna impresora no aparece en el escáner de IP."
+        }
+      ]
+    },
+    {
+      "id": "P49",
+      "kind": "evidence",
+      "evidenceCode": "E9",
+      "block": "I",
+      "inputType": "EVIDENCE",
+      "text": "Sube fotos generales del local.",
+      "field": "evidencias.generales",
+      "required": false,
+      "accept": [
+        "image/jpeg",
+        "image/png"
+      ],
+      "maxFiles": 3,
+      "aiExtract": [
+        "descripcion"
+      ],
+      "minuta": "evidencias",
+      "next": "P50"
+    },
+    {
+      "id": "P50",
+      "kind": "question",
+      "block": "I",
+      "inputType": "YES_NO",
+      "text": "¿Considerar agendar una segunda visita?",
+      "field": "cierre.segundaVisita",
+      "required": true,
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "eq": [
+                "$P50",
+                "SI"
+              ]
+            },
+            "goto": "P50a"
+          }
+        ],
+        "default": "P51"
+      },
+      "minuta": "siguientes_acciones"
+    },
+    {
+      "id": "P50a",
+      "kind": "question",
+      "block": "I",
+      "inputType": "TEXT",
+      "text": "¿Por qué se debe agendar una segunda visita?",
+      "field": "cierre.segundaVisitaMotivo",
+      "required": true,
+      "next": "P51",
+      "minuta": "siguientes_acciones",
+      "effects": [
+        {
+          "addAction": "Se agenda segunda visita: {answer}"
+        }
+      ],
+      "validation": {
+        "minLength": 10
+      }
+    },
+    {
+      "id": "P51",
+      "kind": "question",
+      "block": "I",
+      "inputType": "TEXT",
+      "text": "¿Quiénes asistieron a la visita?",
+      "field": "cierre.asistentes",
+      "required": true,
+      "next": "P52",
+      "minuta": "asistentes"
+    },
+    {
+      "id": "P52",
+      "kind": "question",
+      "block": "I",
+      "inputType": "TEXT",
+      "text": "Acuerdos y siguientes acciones",
+      "field": "cierre.acuerdos",
+      "required": true,
+      "next": "P53",
+      "minuta": "siguientes_acciones",
+      "help": "Prellenar con $registry.actions (Raspberry, UPS, extensiones, impresoras y puntos por instalar). El técnico puede editar."
+    },
+    {
+      "id": "P53",
+      "kind": "question",
+      "block": "I",
+      "inputType": "TEXT",
+      "text": "Observaciones adicionales",
+      "field": "cierre.observaciones",
+      "required": false,
+      "next": "P54",
+      "minuta": "observaciones"
+    },
+    {
+      "id": "P54",
+      "kind": "summary",
+      "block": "I",
+      "text": "Resumen de respuestas y evidencias agrupadas por área. Confirmar para generar minuta y mapa.",
+      "actions": [
+        "GENERAR_MINUTA",
+        "GENERAR_MAPA_IA"
+      ],
+      "next": "END"
+    }
+  ],
+  "subflows": {
+    "U": {
+      "description": "Ubicación de equipo o punto nuevo: foto del punto existente o del lugar donde se instalará",
+      "params": [
+        "area",
+        "equipo",
+        "needsNetwork",
+        "needsPower",
+        "skipNearQuestion"
+      ],
+      "start": "U0",
+      "nodes": [
+        {
+          "id": "U0",
+          "kind": "router",
+          "block": "U",
+          "next": {
+            "rules": [
+              {
+                "if": {
+                  "and": [
+                    {
+                      "eq": [
+                        "$ctx.needsNetwork",
+                        true
+                      ]
+                    },
+                    {
+                      "eq": [
+                        "$ctx.skipNearQuestion",
+                        true
+                      ]
+                    }
+                  ]
+                },
+                "goto": "U3"
+              },
+              {
+                "if": {
+                  "eq": [
+                    "$ctx.needsNetwork",
+                    true
+                  ]
+                },
+                "goto": "U1"
+              }
+            ],
+            "default": "U5_GATE"
+          }
+        },
+        {
+          "id": "U1",
+          "kind": "question",
+          "block": "U",
+          "inputType": "YES_NO",
+          "text": "{ctx.equipo}: ¿hay un punto de red cerca de donde irá el equipo?",
+          "field": "ubicaciones[{ctx.key}].redCerca",
+          "required": true,
+          "next": {
+            "rules": [
+              {
+                "if": {
+                  "eq": [
+                    "$U1",
+                    "SI"
+                  ]
+                },
+                "goto": "U2"
+              }
+            ],
+            "default": "U3"
+          },
+          "minuta": "siguientes_acciones"
+        },
+        {
+          "id": "U2",
+          "kind": "evidence",
+          "evidenceCode": "EU-R",
+          "block": "U",
+          "inputType": "EVIDENCE",
+          "text": "Sube una foto del punto de red cercano ({ctx.area.label}).",
+          "field": "ubicaciones[{ctx.key}].fotoPuntoRed",
+          "required": true,
+          "accept": [
+            "image/jpeg",
+            "image/png"
+          ],
+          "maxFiles": 3,
+          "aiExtract": [
+            "estado",
+            "rotulado"
+          ],
+          "minuta": "evidencias",
+          "tagWith": [
+            "ctx.area",
+            "ctx.equipo"
+          ],
+          "next": "U5_GATE"
+        },
+        {
+          "id": "U3",
+          "kind": "question",
+          "block": "U",
+          "inputType": "TEXT",
+          "text": "{ctx.equipo}: ¿dónde se instalará el punto de red en {ctx.area.label}, según el cliente?",
+          "field": "ubicaciones[{ctx.key}].ubicacionPuntoRedNuevo",
+          "required": true,
+          "next": "U4",
+          "minuta": "siguientes_acciones",
+          "effects": [
+            {
+              "addAction": "Instalar punto de red en {ctx.area.label}: {answer}."
+            }
+          ]
+        },
+        {
+          "id": "U4",
+          "kind": "evidence",
+          "evidenceCode": "EU-RN",
+          "block": "U",
+          "inputType": "EVIDENCE",
+          "text": "Sube una foto del lugar donde se instalará el punto de red ({ctx.area.label}).",
+          "field": "ubicaciones[{ctx.key}].fotoLugarPuntoRed",
+          "required": true,
+          "accept": [
+            "image/jpeg",
+            "image/png"
+          ],
+          "maxFiles": 3,
+          "aiExtract": [
+            "descripcion"
+          ],
+          "minuta": "evidencias",
+          "tagWith": [
+            "ctx.area",
+            "ctx.equipo"
+          ],
+          "next": "U5_GATE"
+        },
+        {
+          "id": "U5_GATE",
+          "kind": "router",
+          "block": "U",
+          "next": {
+            "rules": [
+              {
+                "if": {
+                  "and": [
+                    {
+                      "eq": [
+                        "$ctx.needsPower",
+                        true
+                      ]
+                    },
+                    {
+                      "eq": [
+                        "$ctx.skipNearQuestion",
+                        true
+                      ]
+                    }
+                  ]
+                },
+                "goto": "U7"
+              },
+              {
+                "if": {
+                  "eq": [
+                    "$ctx.needsPower",
+                    true
+                  ]
+                },
+                "goto": "U5"
+              }
+            ],
+            "default": "@return"
+          }
+        },
+        {
+          "id": "U5",
+          "kind": "question",
+          "block": "U",
+          "inputType": "YES_NO",
+          "text": "{ctx.equipo}: ¿hay una toma de energía cerca de donde irá el equipo?",
+          "field": "ubicaciones[{ctx.key}].energiaCerca",
+          "required": true,
+          "next": {
+            "rules": [
+              {
+                "if": {
+                  "eq": [
+                    "$U5",
+                    "SI"
+                  ]
+                },
+                "goto": "U6"
+              }
+            ],
+            "default": "U7"
+          },
+          "minuta": "siguientes_acciones"
+        },
+        {
+          "id": "U6",
+          "kind": "evidence",
+          "evidenceCode": "EU-E",
+          "block": "U",
+          "inputType": "EVIDENCE",
+          "text": "Sube una foto de la toma cercana ({ctx.area.label}).",
+          "field": "ubicaciones[{ctx.key}].fotoToma",
+          "required": true,
+          "accept": [
+            "image/jpeg",
+            "image/png"
+          ],
+          "maxFiles": 3,
+          "aiExtract": [
+            "estado",
+            "tipoToma"
+          ],
+          "minuta": "evidencias",
+          "tagWith": [
+            "ctx.area",
+            "ctx.equipo"
+          ],
+          "next": "@return"
+        },
+        {
+          "id": "U7",
+          "kind": "question",
+          "block": "U",
+          "inputType": "TEXT",
+          "text": "{ctx.equipo}: ¿dónde se instalará la toma de energía en {ctx.area.label}, según el cliente?",
+          "field": "ubicaciones[{ctx.key}].ubicacionTomaNueva",
+          "required": true,
+          "next": "U8",
+          "minuta": "siguientes_acciones",
+          "effects": [
+            {
+              "addAction": "Instalar toma de energía en {ctx.area.label}: {answer}."
+            }
+          ]
+        },
+        {
+          "id": "U8",
+          "kind": "evidence",
+          "evidenceCode": "EU-EN",
+          "block": "U",
+          "inputType": "EVIDENCE",
+          "text": "Sube una foto del lugar donde se instalará la toma ({ctx.area.label}).",
+          "field": "ubicaciones[{ctx.key}].fotoLugarToma",
+          "required": true,
+          "accept": [
+            "image/jpeg",
+            "image/png"
+          ],
+          "maxFiles": 3,
+          "aiExtract": [
+            "descripcion"
+          ],
+          "minuta": "evidencias",
+          "tagWith": [
+            "ctx.area",
+            "ctx.equipo"
+          ],
+          "next": "@return"
+        }
+      ]
+    }
+  }
+}
