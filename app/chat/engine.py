@@ -212,6 +212,18 @@ class ChatEngine:
             block = node.get("block")
             if block in BLOCK_ORDER and BLOCK_ORDER.index(block) + 1 >= current_block:
                 remaining += 1
+        if prompt.get("kind") == "evidence":
+            captured = sum(
+                1 for k in state["answers"]
+                if "." not in k and FLOW.nodes.get(k.split("#")[0], {}).get("kind") == "evidence"
+            )
+            pending = sum(
+                1 for n in FLOW.nodes.values()
+                if n["kind"] == "evidence" and re.fullmatch(r"P\d+", n["id"])
+                and n["id"] not in done_ids and n["id"] != prompt.get("nodeId")
+                and n.get("block") in BLOCK_ORDER and BLOCK_ORDER.index(n["block"]) + 1 >= current_block
+            )
+            prompt["evidenceNumber"], prompt["evidenceTotal"] = captured + 1, captured + 1 + pending
         return answered + 1, answered + 1 + remaining
 
     def _flag_documented(self, state: Dict[str, Any], extracted: Dict[str, Any]) -> None:
