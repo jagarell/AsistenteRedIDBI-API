@@ -79,6 +79,22 @@ def _node_type(topology_type: str, label: str) -> str:
     return {"detected": "other"}.get(topology_type, topology_type if topology_type in NODE_TYPES else "other")
 
 
+def _short_label(node) -> str:
+    """Nombres cortos para que el mapa se lea en la tarjeta del chat ("Imp. cocina", "Rep. .22")."""
+    label = (node.label or "").strip()
+    low = label.lower()
+    if low.startswith("router"):
+        return " ".join(label.split()[:2])
+    if low.startswith("impresora "):
+        return "Imp. " + label[len("Impresora "):].lower()
+    if low.startswith("internet"):
+        return label.replace(" · ", " ")
+    if low.startswith("access point") or low.startswith("repetidor"):
+        ip = re.search(r"(\d+\.\d+\.\d+\.(\d+))", node.detail or "")
+        return f"Rep. .{ip.group(2)}" if ip else "Repetidor"
+    return label
+
+
 def from_topology(topology: Topology) -> MapDocument:
     """Mapa automático: árbol Internet → router → equipos, con posiciones calculadas."""
     children: Dict[str, List[str]] = {n.id: [] for n in topology.nodes}
@@ -109,7 +125,7 @@ def from_topology(topology: Topology) -> MapDocument:
 
     nodes = [
         MapNode(
-            id=n.id, label=n.label, type=_node_type(n.type, n.label),
+            id=n.id, label=_short_label(n), type=_node_type(n.type, n.label),
             x=round(0.5 if cols == 1 and x_next[0] <= 1 else pos[n.id][0] / cols, 4),
             y=round(0.1 + pos[n.id][1] / max_depth * 0.8, 4),
             pending=n.pending, detail=n.detail,
