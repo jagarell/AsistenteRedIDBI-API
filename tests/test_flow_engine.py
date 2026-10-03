@@ -149,3 +149,47 @@ def test_contexto_teclado_y_pistas():
     for _ in range(3):
         s2.advance("", {"count": 1, "extracted": {}})
     assert s2.prompt()["context"] == "Caja 1 de 2"
+
+
+def _until_evidence(code):
+    """Corre el flujo hasta quedar parado en la evidencia `code` (sin subirla)."""
+    state = new_state({"today": "31/05/2026", "technician": "Yomira Mora"})
+    script = {"P05": "987654321"}
+    for _ in range(400):
+        s = Session(state)
+        p = s.prompt()
+        if p["kind"] == "evidence" and p["evidenceCode"] == code:
+            return state, s, p
+        t = p["inputType"]
+        raw = script.get(p["nodeId"]) or {
+            "YES_NO": "SI", "NUMBER": "1",
+            "CHOICE": p["options"][0]["value"] if p["options"] else "",
+            "MULTI_SELECT": p["options"][0]["value"] if p["options"] else "",
+            "EVIDENCE": "", "ALERT": "", "SUMMARY": "GENERAR_MINUTA",
+        }.get(t, "ok")
+        s.advance(str(raw), {"count": 1, "extracted": {}} if p["kind"] == "evidence" else None)
+    raise AssertionError("no llegó a la evidencia")
+
+
+def test_foto_del_local_es_obligatoria():
+    import pytest
+
+    state, s, p = _until_evidence("E9")
+    assert p["skippable"] is False
+    with pytest.raises(StepError, match="obligatoria"):
+        s.advance("OMITIR", {"count": 0, "extracted": {}})
+    # Con una foto avanza.
+    s.advance("", {"count": 1, "extracted": {}})
+
+
+def test_las_demas_evidencias_se_pueden_omitir():
+    state, s, p = _until_evidence("E1")
+    assert p["skippable"] is True
+    s.advance("OMITIR", {"count": 0, "extracted": {}})
+
+
+def test_el_documento_avisa_si_falta_la_foto_del_local():
+    from app.chat.minuta_doc import _missing_mandatory
+
+    assert _missing_mandatory({"evidences": []}) == ["Foto general del local (E9)"]
+    assert _missing_mandatory({"evidences": [{"code": "E9", "count": 2}]}) == []

@@ -55,13 +55,6 @@ class AnnexItem(BaseModel):
     lines: List[str]
 
 
-class PendingItem(BaseModel):
-    node: str
-    question: str
-    type: str
-    field: str
-
-
 class MinutaDocument(BaseModel):
     title: str = "MINUTA TÉCNICA DE RED"
     subtitle: str
@@ -79,7 +72,8 @@ class MinutaDocument(BaseModel):
     finalStatus: str
     executiveSummary: str
     annexA: List[AnnexItem]
-    annexB: List[PendingItem]
+    # Evidencias obligatorias que faltan: con alguna presente no se genera el PDF.
+    missingMandatory: List[str] = []
     actionsId: List[str]
     actionsClient: List[str]
 
@@ -303,8 +297,7 @@ def build_minuta_document(
     doc = MinutaDocument(
         subtitle=name,
         intro="Minuta generada por el Asistente Virtual de Red a partir de las respuestas del técnico y de las "
-              f"evidencias fotográficas de la visita del {date}. Cada dato indica de qué evidencia sale; lo "
-              "marcado como pendiente lo pedirá el asistente durante la conversación.",
+              f"evidencias fotográficas de la visita del {date}. Cada dato indica de qué evidencia sale.",
         date=date,
         technician=technician,
         kpis={
@@ -325,10 +318,7 @@ def build_minuta_document(
         finalStatus=status,
         executiveSummary=_executive(status, rules, len(pending_rows) + len(skipped)),
         annexA=_annex_a(state),
-        annexB=[PendingItem(node="—", question=f"Completar: {r.label}", type="TEXT", field=r.label)
-                for r in pending_rows]
-               + [PendingItem(node=x["nodeId"], question=x["text"], type="EVIDENCE", field=f"Evidencia {x['code']}")
-                  for x in skipped],
+        missingMandatory=_missing_mandatory(state),
         actionsId=[], actionsClient=[],
     )
     doc.actionsId, doc.actionsClient = _next_actions(state)
@@ -364,6 +354,13 @@ def _recommendations(state, s: Session, rules: List[Rule], printers, cajas) -> L
     return out
 
 
+def _missing_mandatory(state) -> List[str]:
+    from app.chat.flow_engine import MANDATORY_EVIDENCE
+
+    present = {e["code"] for e in state["evidences"] if e.get("count", 0) > 0}
+    return [f"Foto general del local ({code})" for code in sorted(MANDATORY_EVIDENCE - present)]
+
+
 def _executive(status: str, rules: List[Rule], pending: int) -> str:
     speed = next((r for r in rules if r.rule.startswith("Velocidad")), None)
     obs = [r for r in rules if r.status in (checks.OBSERVADO, checks.REVISAR) and not r.rule.startswith("Velocidad")]
@@ -376,8 +373,6 @@ def _executive(status: str, rules: List[Rule], pending: int) -> str:
         shorts = [r.short or r.rule.lower() for r in obs]
         joined = shorts[0] if len(shorts) == 1 else ", ".join(shorts[:-1]) + " y " + shorts[-1]
         base += f" Hay observaciones por corregir: {joined}."
-    if pending:
-        base += f" Quedan {pending} datos del cliente y de infraestructura que el asistente pedirá durante la conversación."
     return base
 
 

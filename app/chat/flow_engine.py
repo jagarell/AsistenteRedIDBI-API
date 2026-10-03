@@ -39,6 +39,10 @@ BLOCK_LABELS = {
 }
 BLOCK_ORDER = list(BLOCK_LABELS.keys())
 
+# Evidencias que no se pueden omitir: sin la foto general del local no hay minuta (el local puede
+# no tener impresoras, puntos de red, router ni tomas, pero la foto del local siempre se sube).
+MANDATORY_EVIDENCE = {"E9"}
+
 _YES = {"si", "sí", "yes", "true", "1", "s"}
 _NO = {"no", "false", "0", "n"}
 
@@ -414,6 +418,7 @@ class Session:
         }
         if kind == "evidence":
             p.update({
+                "skippable": n["evidenceCode"] not in MANDATORY_EVIDENCE,
                 "evidenceCode": n["evidenceCode"],
                 "maxFiles": n.get("maxFiles", 3),
                 "accept": n.get("accept", []),
@@ -584,6 +589,8 @@ class Session:
 
         if kind == "evidence":
             count = int((evidence or {}).get("count", 0))
+            if count == 0 and n["evidenceCode"] in MANDATORY_EVIDENCE:
+                raise StepError("La foto del local es obligatoria: sube al menos una foto para continuar.")
             if count == 0:
                 # "Omitir por ahora": se anota como pendiente y la minuta lo
                 # lista entre los datos que faltan; solo opcional si el nodo lo es.
