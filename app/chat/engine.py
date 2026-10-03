@@ -197,34 +197,50 @@ class ChatEngine:
         return self._respond(request.evaluationId, state, last_evidence=evidence_info, cross_checks=cross,
                              follow_ups=follow)
 
-    def _question_counter(self, state: Dict[str, Any], prompt: Dict[str, Any], answered: int) -> Tuple[int, int]:
-        """"Pregunta N de T". T es una estimación: lo ya respondido más las preguntas
-        y evidencias fijas (sin sufijo a/b/c, que son seguimientos condicionales)
-        que quedan en el bloque actual y los siguientes. Los loops la hacen crecer."""
-        done_ids = {k.split("#")[0] for k in state["answers"] if "." not in k}
+    def _counters(self, state: Dict[str, Any], prompt: Dict[str, Any], answered: int) -> Dict[str, int]:
+        """Contadores del encabezado. T es una estimación y los loops (cajas, impresoras,
+        áreas) la hacen crecer.
+
+        - "Pregunta N de T": solo preguntas fijas (sin las evidencias ni los seguimientos
+          condicionales con sufijo a/b/c).
+        - "Evidencia N de M": las evidencias, aparte.
+        - `percent`: avance sobre todos los pasos (preguntas + evidencias).
+        """
+        nodes = FLOW.nodes
         current_block = prompt.get("blockIndex", 0)
-        remaining = 0
-        for node in FLOW.nodes.values():
-            if node["kind"] not in ("question", "evidence") or not re.fullmatch(r"P\d+", node["id"]):
-                continue
-            if node["id"] in done_ids or node["id"] == prompt.get("nodeId"):
-                continue
-            block = node.get("block")
-            if block in BLOCK_ORDER and BLOCK_ORDER.index(block) + 1 >= current_block:
-                remaining += 1
-        if prompt.get("kind") == "evidence":
-            captured = sum(
-                1 for k in state["answers"]
-                if "." not in k and FLOW.nodes.get(k.split("#")[0], {}).get("kind") == "evidence"
-            )
-            pending = sum(
-                1 for n in FLOW.nodes.values()
-                if n["kind"] == "evidence" and re.fullmatch(r"P\d+", n["id"])
-                and n["id"] not in done_ids and n["id"] != prompt.get("nodeId")
+        done_ids = {k.split("#")[0] for k in state["answers"] if "." not in k}
+
+        def fixed(node: Dict[str, Any], kind: str) -> bool:
+            return node["kind"] == kind and re.fullmatch(r"P\d+", node["id"]) is not None
+
+        def remaining(kind: str) -> int:
+            return sum(
+                1 for n in nodes.values()
+                if fixed(n, kind) and n["id"] not in done_ids and n["id"] != prompt.get("nodeId")
                 and n.get("block") in BLOCK_ORDER and BLOCK_ORDER.index(n["block"]) + 1 >= current_block
             )
-            prompt["evidenceNumber"], prompt["evidenceTotal"] = captured + 1, captured + 1 + pending
-        return answered + 1, answered + 1 + remaining
+
+        def count_answered(kind: str) -> int:
+            return sum(
+                1 for k in state["answers"]
+                if "." not in k and fixed(nodes.get(k.split("#")[0], {"kind": "", "id": ""}), kind)
+            )
+
+        questions_done, evidence_done = count_answered("question"), count_answered("evidence")
+        current = nodes.get(prompt.get("nodeId"), {})
+        on_question = fixed(current, "question") if current else False
+        on_evidence = prompt.get("kind") == "evidence"
+
+        # Sobre una evidencia o un seguimiento el contador de preguntas no avanza.
+        number = questions_done + (1 if on_question else 0)
+        total = questions_done + (1 if on_question else 0) + remaining("question")
+        out = {"questionNumber": max(1, number), "questionTotal": max(1, total)}
+        if on_evidence:
+            out["evidenceNumber"] = evidence_done + 1
+            out["evidenceTotal"] = evidence_done + 1 + remaining("evidence")
+        steps_left = remaining("question") + remaining("evidence") + (1 if on_question or on_evidence else 0)
+        out["percent"] = min(95, int(answered / max(1, answered + steps_left) * 100))
+        return out
 
     def _flag_documented(self, state: Dict[str, Any], extracted: Dict[str, Any]) -> None:
         known = checks.known_ips(state)
@@ -251,8 +267,11 @@ class ChatEngine:
         answered = len([k for k in state["answers"] if "." not in k])
         done = bool(state["done"])
         prompt = {} if done else session.prompt()
+        percent = 100
         if prompt:
-            prompt["questionNumber"], prompt["questionTotal"] = self._question_counter(state, prompt, answered)
+            counters = self._counters(state, prompt, answered)
+            percent = counters.pop("percent")
+            prompt.update(counters)
         block_idx = prompt.get("blockIndex", len(BLOCK_ORDER)) if not done else len(BLOCK_ORDER)
 
         proposal: Optional[ChatProposal] = None
@@ -274,7 +293,7 @@ class ChatEngine:
             currentOptions=[o["label"] for o in prompt.get("options", [])] or None,
             answeredQuestions=answered,
             totalQuestions=len(BLOCK_ORDER),
-            progressPercent=100 if done else min(95, int(answered / max(1, prompt["questionTotal"] - 1) * 100)),
+            progressPercent=100 if done else percent,
             completed=done,
             answers=answers,
             proposal=proposal,

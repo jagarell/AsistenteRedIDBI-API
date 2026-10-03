@@ -74,12 +74,15 @@ def test_rock_burgers_sample(monkeypatch):
                                               "Enviar la lista de usuarios que tendrán acceso como meseros.",
     }
     floors = iter(["2", "1", "2", "3"])
+    seen = []
     r = client.post("/chat/start", json={"evaluationId": "1"}).json()
     for _ in range(300):
         if r["completed"]:
             break
         node = r["node"]
         nid = node["nodeId"]
+        seen.append((node["kind"], node["questionNumber"], node["questionTotal"],
+                     node.get("evidenceNumber"), node.get("evidenceTotal"), r["progressPercent"]))
         scope_holder["scope"] = node["scope"]
         body = {"evaluationId": "1", "state": r["state"], "answer": answers.get(nid, "")}
         if nid == "P11a":
@@ -97,6 +100,16 @@ def test_rock_burgers_sample(monkeypatch):
         r = client.post("/chat/answer", json=body).json()
         assert not r.get("validationError"), (nid, r["validationError"])
     assert r["completed"]
+    # Contador "Pregunta N de T": solo preguntas fijas, nunca pasa de T y no retrocede.
+    numbers = [n for _, n, _, _, _, _ in seen]
+    assert numbers == sorted(numbers)
+    assert all(n <= t for _, n, t, _, _, _ in seen)
+    # "Evidencia N de M": solo en nodos de evidencia, avanza de a una y no pasa de M.
+    ev = [(en, et) for kind, _, _, en, et, _ in seen if kind == "evidence"]
+    assert ev and all(en <= et for en, et in ev)
+    assert all(en is None for kind, _, _, en, _, _ in seen if kind != "evidence")
+    percents = [p for *_, p in seen]
+    assert percents == sorted(percents) and percents[-1] <= 95
     from app.chat import checks
     names = checks.known_labels(json.loads(r["state"]))
     assert names["192.168.100.1"].startswith("Router")
