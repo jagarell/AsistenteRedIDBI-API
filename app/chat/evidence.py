@@ -140,7 +140,11 @@ def analyze_evidence(code: str, images_b64: List[str]) -> EvidenceResult:
         client = OpenAI(api_key=settings.openai_api_key)
         content: List[dict] = [{"type": "text", "text": prompt}]
         for img in images_b64:
-            content.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img}"}})
+            content.append({"type": "image_url", "image_url": {
+                "url": f"data:image/jpeg;base64,{img}",
+                # El escáner de IP es una tabla densa: en detalle alto se leen más filas.
+                **({"detail": "high"} if code == "E8" else {}),
+            }})
         completion = client.chat.completions.create(
             model=settings.openai_model,
             messages=[{"role": "user", "content": content}],

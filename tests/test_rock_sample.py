@@ -97,6 +97,10 @@ def test_rock_burgers_sample(monkeypatch):
         r = client.post("/chat/answer", json=body).json()
         assert not r.get("validationError"), (nid, r["validationError"])
     assert r["completed"]
+    from app.chat import checks
+    names = checks.known_labels(json.loads(r["state"]))
+    assert names["192.168.100.1"].startswith("Router")
+    assert names["192.168.100.20"].startswith("Impresora")
     doc = client.post("/chat/minuta-document", json={"state": r["answers"]["__state"]}).json()
     status = {x["rule"]: x["status"] for x in doc["rules"]}
     assert status["Latencia con la red en uso < 100 ms"] == "OBSERVADO"

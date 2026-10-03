@@ -228,8 +228,11 @@ class ChatEngine:
 
     def _flag_documented(self, state: Dict[str, Any], extracted: Dict[str, Any]) -> None:
         known = checks.known_ips(state)
+        names = checks.known_labels(state)
         for device in extracted.get("dispositivos") or []:
             device["documentado"] = checks.is_documented(state, device, known)
+            if names.get(device.get("ip")):
+                device["etiqueta"] = names[device["ip"]]
 
     # ---- internos ---------------------------------------------------------
     def _geocode(self, state: Dict[str, Any]) -> None:

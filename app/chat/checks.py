@@ -200,6 +200,29 @@ def known_ips(state: Dict[str, Any]) -> set:
     return ips
 
 
+def known_labels(state: Dict[str, Any]) -> Dict[str, str]:
+    """IP → nombre legible de lo que ya está documentado (router, PC de caja, impresoras)."""
+    labels: Dict[str, str] = {}
+    router = first_extracted(state, "E3")
+    router_name = " ".join(x for x in (router.get("marca"),) if x)
+    for e in evidences(state, "E4"):
+        x = e["extracted"]
+        place = e.get("area") or ""
+        kind = x.get("adaptador")
+        name = "PC" + (f" {place}" if place else "") + (f" · {kind}" if kind else "")
+        if x.get("ipv4"):
+            labels[x["ipv4"]] = name
+        if x.get("puertaEnlace"):
+            labels.setdefault(x["puertaEnlace"], "Router" + (f" {router_name}" if router_name else ""))
+    if router.get("ipGestion"):
+        labels[router["ipGestion"]] = "Router" + (f" {router_name}" if router_name else "")
+    for p in printers_detail(state):
+        ip = p["ticket"].get("ip")
+        if ip:
+            labels[ip] = f"Impresora {p.get('label') or ''}".strip()
+    return labels
+
+
 def evaluate_rules(state: Dict[str, Any], pending_count: int = 0) -> List[Rule]:
     rules: List[Rule] = []
 
