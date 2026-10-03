@@ -7,9 +7,10 @@ propuesta es intercambiable vía CHAT_PROPOSAL_ENGINE:
   - 'openai': delega en la API de OpenAI (con fallback a reglas).
 """
 import json
+import re
 import logging
 from datetime import date
-from typing import Any, Callable, Dict, List, Optional
+from typing import Tuple, Any, Callable, Dict, List, Optional
 
 from app.chat.config import settings
 from app.chat import checks
@@ -196,17 +197,22 @@ class ChatEngine:
         return self._respond(request.evaluationId, state, last_evidence=evidence_info, cross_checks=cross,
                              follow_ups=follow)
 
-    def _progress(self, state: Dict[str, Any], block: Optional[str], block_idx: int) -> int:
-        """Avance por bloques (A..I) suavizado con lo ya respondido dentro del bloque actual."""
-        total_in_block = sum(
-            1 for n in FLOW.nodes.values() if n.get("block") == block and n["kind"] in ("question", "evidence")
-        ) or 1
-        answered_in_block = sum(
-            1 for key in state["answers"]
-            if "." not in key and FLOW.nodes.get(key.split("#")[0], {}).get("block") == block
-        )
-        fraction = min(0.9, answered_in_block / total_in_block)
-        return int(((block_idx - 1) + fraction) / len(BLOCK_ORDER) * 100)
+    def _question_counter(self, state: Dict[str, Any], prompt: Dict[str, Any], answered: int) -> Tuple[int, int]:
+        """"Pregunta N de T". T es una estimación: lo ya respondido más las preguntas
+        y evidencias fijas (sin sufijo a/b/c, que son seguimientos condicionales)
+        que quedan en el bloque actual y los siguientes. Los loops la hacen crecer."""
+        done_ids = {k.split("#")[0] for k in state["answers"] if "." not in k}
+        current_block = prompt.get("blockIndex", 0)
+        remaining = 0
+        for node in FLOW.nodes.values():
+            if node["kind"] not in ("question", "evidence") or not re.fullmatch(r"P\d+", node["id"]):
+                continue
+            if node["id"] in done_ids or node["id"] == prompt.get("nodeId"):
+                continue
+            block = node.get("block")
+            if block in BLOCK_ORDER and BLOCK_ORDER.index(block) + 1 >= current_block:
+                remaining += 1
+        return answered + 1, answered + 1 + remaining
 
     def _flag_documented(self, state: Dict[str, Any], extracted: Dict[str, Any]) -> None:
         known = checks.known_ips(state)
@@ -230,6 +236,8 @@ class ChatEngine:
         answered = len([k for k in state["answers"] if "." not in k])
         done = bool(state["done"])
         prompt = {} if done else session.prompt()
+        if prompt:
+            prompt["questionNumber"], prompt["questionTotal"] = self._question_counter(state, prompt, answered)
         block_idx = prompt.get("blockIndex", len(BLOCK_ORDER)) if not done else len(BLOCK_ORDER)
 
         proposal: Optional[ChatProposal] = None
@@ -251,7 +259,7 @@ class ChatEngine:
             currentOptions=[o["label"] for o in prompt.get("options", [])] or None,
             answeredQuestions=answered,
             totalQuestions=len(BLOCK_ORDER),
-            progressPercent=100 if done else self._progress(state, prompt.get("block"), block_idx),
+            progressPercent=100 if done else min(95, int(answered / max(1, prompt["questionTotal"] - 1) * 100)),
             completed=done,
             answers=answers,
             proposal=proposal,
