@@ -66,6 +66,26 @@
       "label": "Jugos"
     },
     {
+      "value": "CAFETERIA",
+      "label": "Cafetería"
+    },
+    {
+      "value": "PARRILLA",
+      "label": "Parrillas"
+    },
+    {
+      "value": "MAKIS",
+      "label": "Makis"
+    },
+    {
+      "value": "RAMEN",
+      "label": "Ramen"
+    },
+    {
+      "value": "PANADERIA",
+      "label": "Panadería"
+    },
+    {
       "value": "ALMACEN",
       "label": "Almacén"
     },
@@ -79,7 +99,8 @@
     }
   ],
   "derived": {
-    "areasSinImpresora": "P25 menos todas las áreas ya asignadas a una impresora en $registry.printers (se recalcula en cada paso)"
+    "areasSinImpresora": "P25 menos todas las áreas ya asignadas a una impresora en $registry.printers (se recalcula en cada paso)",
+    "necesitaComandas": "P11 incluye al menos un área de preparación ($prepAreas)"
   },
   "registries": {
     "printers": "Impresoras existentes (P27–P31) y nuevas (P32c). Campos: id, label, areas[], ubicacion, conexion, existing",
@@ -342,6 +363,26 @@
           "label": "Jugos"
         },
         {
+          "value": "CAFETERIA",
+          "label": "Cafetería"
+        },
+        {
+          "value": "PARRILLA",
+          "label": "Parrillas"
+        },
+        {
+          "value": "MAKIS",
+          "label": "Makis"
+        },
+        {
+          "value": "RAMEN",
+          "label": "Ramen"
+        },
+        {
+          "value": "PANADERIA",
+          "label": "Panadería"
+        },
+        {
           "value": "ALMACEN",
           "label": "Almacén"
         },
@@ -400,12 +441,60 @@
       "text": "¿Cuántas cajas hay?",
       "field": "negocio.cajas",
       "required": true,
-      "next": "P13",
+      "next": "P12b",
       "minuta": "antecedentes",
       "validation": {
         "min": 0,
         "max": 20
       }
+    },
+    {
+      "id": "P12b",
+      "kind": "question",
+      "block": "B",
+      "inputType": "YES_NO",
+      "text": "¿En caja saldrán comandas?",
+      "field": "negocio.comandaEnCaja",
+      "required": true,
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "includesAny": [
+                "$P11",
+                "$prepAreas"
+              ]
+            },
+            "goto": "P13"
+          },
+          {
+            "if": {
+              "eq": [
+                "$P12b",
+                "SI"
+              ]
+            },
+            "goto": "A_SUNMI"
+          }
+        ],
+        "default": "P13"
+      },
+      "minuta": "antecedentes",
+      "help": "Pregunta fija para todos los negocios. Si no hay áreas de preparación y la comanda sale en caja, se recomienda un Sunmi con chip."
+    },
+    {
+      "id": "A_SUNMI",
+      "kind": "alert",
+      "block": "B",
+      "severity": "info",
+      "requiresAck": true,
+      "text": "La comanda sale solo en caja. Recomienda un Sunmi con chip (imprime comprobantes, pre-cuentas y comandas). Se compra al equipo de Desarrollo de Negocios.",
+      "next": "P13",
+      "effects": [
+        {
+          "addAction": "Pedir la cotización del Sunmi al equipo de Desarrollo de Negocios."
+        }
+      ]
     },
     {
       "id": "P13",
@@ -451,26 +540,62 @@
       "text": "¿Qué tipo de conexión tiene?",
       "field": "internet.tipoConexion",
       "required": true,
-      "next": "P15",
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "in": [
+                "$P14",
+                [
+                  "NO_TIENE",
+                  "NO_SE"
+                ]
+              ]
+            },
+            "goto": "P16"
+          }
+        ],
+        "default": "P15"
+      },
       "options": [
         {
           "value": "FIBRA",
-          "label": "Fibra"
+          "label": "Fibra óptica"
         },
         {
-          "value": "COBRE",
-          "label": "Cobre"
-        },
-        {
-          "value": "INALAMBRICA",
-          "label": "Inalámbrica"
+          "value": "COAXIAL",
+          "label": "Cable coaxial"
         },
         {
           "value": "NO_SE",
           "label": "No sé"
+        },
+        {
+          "value": "NO_TIENE",
+          "label": "No tiene"
+        },
+        {
+          "value": "CHIP",
+          "label": "Internet con chip"
         }
       ],
-      "minuta": "internet"
+      "minuta": "internet",
+      "help": "\"No sé\" se toma como que el local no tiene internet: se salta la velocidad contratada (P15) y el speedtest (E1).",
+      "effects": [
+        {
+          "if": {
+            "in": [
+              "$P14",
+              [
+                "NO_TIENE",
+                "NO_SE"
+              ]
+            ]
+          },
+          "addAlert": "El local no tiene internet (o no se sabe): no hay velocidad que medir.",
+          "addAction": "Probar la señal del chip (Entel o Claro) con un celular dentro del local y, si hay comandas, evaluar un router con chip."
+        }
+      ]
     },
     {
       "id": "P15",
@@ -517,7 +642,23 @@
       "text": "¿En qué área está el router?",
       "field": "internet.ubicacionRouter",
       "required": true,
-      "next": "P19",
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "in": [
+                "$P14",
+                [
+                  "NO_TIENE",
+                  "NO_SE"
+                ]
+              ]
+            },
+            "goto": "P20"
+          }
+        ],
+        "default": "P19"
+      },
       "options": {
         "from": "$P11"
       },
@@ -652,26 +793,52 @@
             "if": {
               "eq": [
                 "$P22",
-                "NO_HAY"
+                "SI"
               ]
             },
-            "goto": "A_RASPBERRY"
+            "goto": "P23"
+          },
+          {
+            "if": {
+              "eq": [
+                "$P22",
+                "TABLET"
+              ]
+            },
+            "goto": "A_RASPBERRY_TABLET"
+          },
+          {
+            "if": {
+              "eq": [
+                "$P22",
+                "OTRO"
+              ]
+            },
+            "goto": "P22f"
           }
         ],
-        "default": "P23"
+        "default": "A_RASPBERRY"
       },
       "options": [
         {
-          "value": "PC",
-          "label": "PC"
+          "value": "SI",
+          "label": "Sí"
         },
         {
-          "value": "LAPTOP",
-          "label": "Laptop"
+          "value": "NO",
+          "label": "No"
         },
         {
-          "value": "NO_HAY",
-          "label": "No hay"
+          "value": "TABLET",
+          "label": "Tablet"
+        },
+        {
+          "value": "NO_SE",
+          "label": "No sé"
+        },
+        {
+          "value": "OTRO",
+          "label": "Otro"
         }
       ],
       "minuta": "equipos_caja",
@@ -679,12 +846,59 @@
         "node": "computer",
         "label": "PC Caja {i}",
         "skipIf": {
-          "eq": [
+          "ne": [
             "$P22",
-            "NO_HAY"
+            "SI"
           ]
         }
-      }
+      },
+      "effects": [
+        {
+          "if": {
+            "in": [
+              "$P22",
+              [
+                "NO_SE"
+              ]
+            ]
+          },
+          "addAction": "Caja {i}: confirmar con el cliente qué equipo hay en caja (respondió «No sé»)."
+        }
+      ],
+      "help": "No sé y Otro se tratan como \"No\" y quedan por confirmar con el cliente."
+    },
+    {
+      "id": "P22f",
+      "kind": "question",
+      "block": "D",
+      "inputType": "TEXT",
+      "text": "Caja {i}: ¿qué equipo hay en caja?",
+      "field": "cajas[{i}].equipoOtro",
+      "required": true,
+      "next": "A_RASPBERRY",
+      "minuta": "equipos_caja",
+      "validation": {
+        "minLength": 2
+      },
+      "effects": [
+        {
+          "addAction": "Caja {i}: confirmar con el cliente el equipo de caja indicado: «{answer}»."
+        }
+      ]
+    },
+    {
+      "id": "A_RASPBERRY_TABLET",
+      "kind": "alert",
+      "block": "D",
+      "severity": "warning",
+      "requiresAck": true,
+      "text": "Caja {i}: la caja es una tablet. Es obligatorio un kit Raspberry para el controlador de impresiones y las impresoras deben ser de red. Cotízalo con Desarrollo de Negocios.",
+      "next": "P22a",
+      "effects": [
+        {
+          "addAction": "Caja {i}: adquirir un kit Raspberry (obligatorio por usar tablet). Cotizar con Desarrollo de Negocios."
+        }
+      ]
     },
     {
       "id": "A_RASPBERRY",
@@ -1027,7 +1241,29 @@
         "node": "printer",
         "label": "Impresora {i} – {P27.labels.join(' + ')}",
         "linkType": "$P30"
-      }
+      },
+      "effects": [
+        {
+          "if": {
+            "and": [
+              {
+                "includesAny": [
+                  "$P27",
+                  "$prepAreas"
+                ]
+              },
+              {
+                "ne": [
+                  "$P30",
+                  "CABLE_RED"
+                ]
+              }
+            ]
+          },
+          "addAlert": "Impresora {i} ({P27.labels}): las impresoras de áreas de preparación deben ser de red, por cable. Con USB, WiFi o Bluetooth no sirven para las comandas.",
+          "addAction": "Impresora {i} ({P27.labels}): cambiarla por una impresora de red y conectarla por cable."
+        }
+      ]
     },
     {
       "id": "P31",
@@ -1205,6 +1441,26 @@
         },
         {
           "addAction": "Instalar impresora nueva para {item.label} en {P32b.label}."
+        },
+        {
+          "if": {
+            "and": [
+              {
+                "in": [
+                  "$item",
+                  "$prepAreas"
+                ]
+              },
+              {
+                "ne": [
+                  "$P32c",
+                  "CABLE_RED"
+                ]
+              }
+            ]
+          },
+          "addAlert": "{item.label}: la impresora nueva de un área de preparación debe ser de red, por cable.",
+          "addAction": "{item.label}: la impresora nueva debe ser de red por cable (área de preparación)."
         }
       ],
       "topology": {
@@ -2095,5 +2351,17 @@
         }
       ]
     }
-  }
+  },
+  "prepAreas": [
+    "BAR",
+    "COCINA",
+    "PIZZA",
+    "BRASAS",
+    "JUGOS",
+    "CAFETERIA",
+    "PARRILLA",
+    "MAKIS",
+    "RAMEN",
+    "PANADERIA"
+  ]
 }

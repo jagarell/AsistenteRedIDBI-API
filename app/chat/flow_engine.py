@@ -171,6 +171,10 @@ class Session:
         name = ref[1:]
         if name.startswith("ctx."):
             return self.s["calls"][-1]["ctx"].get(name[4:])
+        if name == "item":
+            return str(self.cur_item())
+        if name == "prepAreas":
+            return FLOW.data.get("prepAreas", [])
         if name.startswith("derived."):
             return getattr(self, "derived_" + name[8:])()
         if name.startswith("registry."):
@@ -222,6 +226,8 @@ class Session:
             return a in (b or [])
         if op == "includes":
             return b in (a or [])
+        if op == "includesAny":
+            return any(x in (b or []) for x in (a or []))
         raise ValueError(f"Operador desconocido: {op}")
 
     def route(self, next_: Any) -> str:

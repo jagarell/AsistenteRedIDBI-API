@@ -165,7 +165,10 @@ def build_state_topology(state: Dict) -> Topology:
             "USB": ConnectionType.USB_BLUETOOTH, "BLUETOOTH": ConnectionType.USB_BLUETOOTH}
 
     provider = s.label_of(a.get("P13")) if a.get("P13") else "Proveedor de Internet"
-    kind = {"FIBRA": "Fibra óptica", "COBRE": "Cobre", "INALAMBRICA": "Inalámbrica"}.get(a.get("P14", ""))
+    kind = {"FIBRA": "Fibra óptica", "COAXIAL": "Cable coaxial", "CHIP": "Internet con chip",
+            "NO_TIENE": "Sin internet", "NO_SE": "Sin internet",
+            # evaluaciones hechas con las opciones anteriores de P14
+            "COBRE": "Cobre", "INALAMBRICA": "Inalámbrica"}.get(a.get("P14", ""))
     internet = add("internet", f"Internet · {provider}", "internet", 0, kind)
 
     e3 = checks.first_extracted(state, "E3")
@@ -180,7 +183,7 @@ def build_state_topology(state: Dict) -> Topology:
     for c in checks.cajas(state):
         sc = f"L_CAJAS:{c['i']}"
         name = f"Caja {c['i']}" if len(checks.cajas(state)) > 1 else "Caja"
-        if c["equipo"] in ("PC", "LAPTOP"):
+        if c["equipo"] in checks.HAS_COMPUTER:
             ip = c["ipconfig"].get("ipv4")
             host = c["ipconfig"].get("nombreEquipo")
             pc = add(f"pc_{c['i']}", f"PC {name}", "computer", 2,

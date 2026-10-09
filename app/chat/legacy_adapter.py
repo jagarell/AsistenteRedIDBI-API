@@ -20,7 +20,9 @@ from app.chat.flow_engine import FLOW, Session
 STATE_KEY = "__state"
 
 _CONNECTION_LEGACY = {
-    "FIBRA": "Fibra óptica", "COBRE": "Cable", "INALAMBRICA": "4G/5G", "NO_SE": "",
+    "FIBRA": "Fibra óptica", "COAXIAL": "Cable coaxial", "CHIP": "4G/5G", "NO_TIENE": "", "NO_SE": "",
+    # opciones anteriores de P14
+    "COBRE": "Cable", "INALAMBRICA": "4G/5G",
 }
 
 

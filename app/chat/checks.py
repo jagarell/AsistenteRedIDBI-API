@@ -57,6 +57,11 @@ def num(value: Any) -> Optional[float]:
         return None
 
 
+# Respuestas de P22 que significan "hay PC o laptop en caja": SI es la actual; PC y LAPTOP son de evaluaciones
+# hechas antes de que P22 pasara a Sí/No/Tablet/No sé/Otro.
+HAS_COMPUTER = ("SI", "PC", "LAPTOP")
+
+
 def norm_mac(mac: Optional[str]) -> str:
     return "".join(c for c in (mac or "").lower() if c.isalnum())
 
@@ -251,7 +256,7 @@ def evaluate_rules(state: Dict[str, Any], pending_count: int = 0) -> List[Rule]:
 
     # 3 PC de caja por cable
     for c in cajas(state):
-        if c["equipo"] in ("PC", "LAPTOP"):
+        if c["equipo"] in HAS_COMPUTER:
             adapter = (c["ipconfig"].get("adaptador") or "").lower()
             wifi = c["conexion"] == "WIFI" or "wifi" in adapter or "wi-fi" in adapter
             result = "Conectada por WiFi" if wifi else "Conectada por cable"
@@ -319,6 +324,21 @@ def evaluate_rules(state: Dict[str, Any], pending_count: int = 0) -> List[Rule]:
                               result=f"{p['label']} es USB: depende de que la PC esté encendida",
                               status=OBSERVADO, short="la dependencia de la impresora USB"))
             break
+
+    # 8b impresoras de áreas de preparación: siempre de red por cable (R51)
+    from app.chat.flow_engine import FLOW
+
+    prep = set(FLOW.data.get("prepAreas", []))
+    prep_printers = [p for p in printers_detail(state) if prep & set(p.get("areas") or [])]
+    wrong = [p for p in prep_printers if p.get("conexion") and p["conexion"] != "CABLE_RED"]
+    if wrong:
+        names = ", ".join(f"{p['label']} ({label(state, p['conexion'])})" for p in wrong)
+        rules.append(Rule(rule="Impresoras de áreas de preparación de red por cable",
+                          result=f"No son de red por cable: {names}", status=OBSERVADO,
+                          short="impresoras de preparación que no son de red"))
+    elif prep_printers:
+        rules.append(Rule(rule="Impresoras de áreas de preparación de red por cable",
+                          result="Todas las impresoras de áreas de preparación son de red por cable", status=CUMPLE))
 
     # 9 credenciales fuera del documento
     if evidences(state, "E3"):

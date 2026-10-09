@@ -78,6 +78,18 @@ class MinutaDocument(BaseModel):
     actionsClient: List[str]
 
 
+def _equipo_note(session: Session, c: dict, answers: dict, scope: str) -> str:
+    """Qué respondió el técnico cuando no es una PC o laptop (Tablet, No sé, Otro)."""
+    kind = c["equipo"]
+    if kind == "TABLET":
+        return "Tablet en caja. "
+    if kind == "OTRO":
+        return f"Equipo indicado: {answers.get(f'P22f#{scope}') or 'sin detalle'} (por confirmar). "
+    if kind == "NO_SE":
+        return "Equipo de caja sin confirmar. "
+    return ""
+
+
 def _v(session: Session, value: Any) -> str:
     if value is None or value == "":
         return ""
@@ -136,6 +148,7 @@ def build_minuta_document(
         _row("Tipo de negocio", ans("P09"), f"{SRC_CHAT} (P09)", session=s),
         _row("Cantidad de pisos", ans("P10"), f"{SRC_CHAT} (P10)", session=s),
         _row("Cantidad de cajas", ans("P12"), f"{SRC_CHAT} (P12)", session=s),
+        _row("Comandas en caja", ans("P12b"), f"{SRC_CHAT} (P12b)", session=s),
         _row("Áreas del local", areas, f"{SRC_CHAT} (P11)", session=s),
     ])
     if int(ans("P10") or 1) > 1:
@@ -217,18 +230,20 @@ def build_minuta_document(
     for c in cajas:
         label = f"PC Caja {c['i']}" if len(cajas) > 1 else "PC Caja"
         sc = f"L_CAJAS:{c['i']}"
-        if c["equipo"] in ("PC", "LAPTOP"):
+        note = _equipo_note(s, c, a, sc)
+        if c["equipo"] in checks.HAS_COMPUTER:
             ip = c["ipconfig"]
             via = "WiFi" if c["conexion"] == "WIFI" else "cable de red"
             pieces = [x for x in (ip.get("nombreEquipo"), f"IP {ip['ipv4']}" if ip.get("ipv4") else None,
                                   f"conectada por {via}") if x]
             pos_rows.append(Row(label=label, value=" · ".join(pieces), source="ipconfig (E4)", origin="image"))
         elif a.get(f"P22a#{sc}") == "SI":
-            pos_rows.append(_row(f"Raspberry Caja {c['i']}", f"Conexión: {_v(s, a.get(f'P22c#{sc}'))}",
+            pos_rows.append(_row(f"Raspberry Caja {c['i']}",
+                                 f"{note}Conexión: {_v(s, a.get(f'P22c#{sc}'))}",
                                  f"{SRC_CHAT} (P22c)", session=s))
         else:
             pos_rows.append(Row(label=f"Equipo Caja {c['i']}",
-                                value=f"Sin equipo; el cliente adquirirá {_v(s, a.get(f'P22b#{sc}'))}",
+                                value=f"{note or 'Sin equipo. '}El cliente adquirirá {_v(s, a.get(f'P22b#{sc}'))}",
                                 source=f"{SRC_CHAT} (P22b)"))
     if not pos_rows:
         pos_rows.append(Row(label="Equipos POS", pending=True, pendingNote="el local no tiene cajas"))
