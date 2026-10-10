@@ -71,11 +71,24 @@ class MinutaDocument(BaseModel):
     mapCaption: str
     finalStatus: str
     executiveSummary: str
+    # Se muestra si la minuta trae al menos una recomendación (resumen ejecutivo y siguientes acciones).
+    viabilityNotice: str = ""
     annexA: List[AnnexItem]
     # Evidencias obligatorias que faltan: con alguna presente no se genera el PDF.
     missingMandatory: List[str] = []
     actionsId: List[str]
     actionsClient: List[str]
+
+
+def _ports_row(s: Session, e2: Dict[str, Any]) -> Row:
+    """Puertos LAN del router: leídos en la foto E2 (y confirmados por el técnico) o respondidos en P18a."""
+    free = s.derived_puertosLibresRouter()
+    if free is None:
+        return _row("Cantidad de puertos LAN", None, "", ask="foto del panel trasero del router")
+    if e2.get("puertosLanTotales") is not None:
+        value = f"{e2['puertosLanTotales']:g} en total · {e2.get('puertosLanOcupados', '—')} ocupados · {free} libres"
+        return Row(label="Cantidad de puertos LAN", value=value, source="Foto del router (E2)", origin="image")
+    return Row(label="Cantidad de puertos LAN", value=f"{free} libres", source=f"{SRC_CHAT} (P18a)")
 
 
 def _equipo_note(session: Session, c: dict, answers: dict, scope: str) -> str:
@@ -122,6 +135,7 @@ def build_minuta_document(
     a = state["answers"]
     ans = lambda nid, scope="": checks.answer(state, nid, scope)  # noqa: E731
     e1, e3 = checks.first_extracted(state, "E1"), checks.first_extracted(state, "E3")
+    e2 = checks.first_extracted(state, "E2")
     cajas = checks.cajas(state)
     printers = checks.printers_detail(state)
     devices = checks.scanner_devices(state)
@@ -149,6 +163,8 @@ def build_minuta_document(
         _row("Cantidad de pisos", ans("P10"), f"{SRC_CHAT} (P10)", session=s),
         _row("Cantidad de cajas", ans("P12"), f"{SRC_CHAT} (P12)", session=s),
         _row("Comandas en caja", ans("P12b"), f"{SRC_CHAT} (P12b)", session=s),
+        _row("Áreas de preparación (comandas)", "Sí" if s.derived_necesitaComandas() else "No",
+             f"Derivado de las áreas ({SRC_CHAT} P11)"),
         _row("Áreas del local", areas, f"{SRC_CHAT} (P11)", session=s),
     ])
     if int(ans("P10") or 1) > 1:
@@ -180,6 +196,7 @@ def build_minuta_document(
         _row("Velocidad medida", measured, "Captura del speedtest (E1)", origin="image",
              ask="falta una captura legible del speedtest", session=s),
         _row("Tipo de conexión", ans("P14"), f"{SRC_CHAT} (P14)", session=s),
+        *([_row("Señal del chip", ans("P14b"), f"{SRC_CHAT} (P14b)", session=s)] if ans("P14b") else []),
         _row("Línea de respaldo", ans("P16"), f"{SRC_CHAT} (P16)", session=s),
         _row("Caídas en el último mes", ans("P17"), f"{SRC_CHAT} (P17)", session=s),
         _row("Ubicación del router", ans("P18"), f"{SRC_CHAT} (P18)", session=s),
@@ -195,7 +212,7 @@ def build_minuta_document(
     sec4 = Section(number=4, title="Equipamiento de red", rows=[
         _row("Router (marca/modelo)", router, "Etiqueta del router (E3)", origin="image",
              ask="la etiqueta no se leyó con claridad", session=s),
-        _row("Cantidad de puertos LAN", None, "", ask="foto del panel trasero del router"),
+        _ports_row(s, e2),
         _row("Switch (marca/modelo)", None, "", ask="¿hay switch? foto de su etiqueta"),
         _row("Número de puertos del switch", None, "", ask="depende de la respuesta anterior"),
         _row("Access Point / Repetidor", "Sí, hay access points o repetidores" if ans("P45") == "SI"
@@ -337,6 +354,9 @@ def build_minuta_document(
         actionsId=[], actionsClient=[],
     )
     doc.actionsId, doc.actionsClient = _next_actions(state)
+    if doc.recommendations or doc.actionsId or doc.actionsClient:
+        doc.viabilityNotice = VIABILITY_NOTICE
+        doc.executiveSummary = f"{doc.executiveSummary} {VIABILITY_NOTICE}"
     # `sections` agrupa 1-6 y 8; el número 7 es la tabla de impresoras.
     return doc
 
@@ -369,6 +389,10 @@ def _recommendations(state, s: Session, rules: List[Rule], printers, cajas) -> L
     return out
 
 
+VIABILITY_NOTICE = ("Si no se siguen las recomendaciones de esta minuta, no es viable la implementación del "
+                    "punto de venta en el local.")
+
+
 def _missing_mandatory(state) -> List[str]:
     from app.chat.flow_engine import MANDATORY_EVIDENCE
 
@@ -398,7 +422,7 @@ def _annex_a(state) -> List[AnnexItem]:
         x, code = e["extracted"], e["code"]
         lines: List[str] = []
         title = {
-            "E1": "Captura del speedtest", "E2": "Foto del router", "E3": "Etiqueta del router",
+            "E1": "Captura del speedtest", "E1b": "Speedtest con chip", "E2": "Foto del router", "E3": "Etiqueta del router",
             "E4": "ipconfig de la PC de caja", "E5": "Ticket de autoprueba de la impresora",
             "E6": "Puntos de red y tomas", "E7": "Extensión de energía", "E8": "Escáner de IP",
             "E9": "Fotos generales del local", "EU-R": "Punto de red cercano", "EU-RN": "Lugar del nuevo punto de red",
@@ -416,6 +440,14 @@ def _annex_a(state) -> List[AnnexItem]:
             if x.get("servidor"):
                 lines.append(f"Servidor {x['servidor']}." + (f" Proveedor mostrado: \"{x['proveedor']}\"."
                                                               if x.get("proveedor") else ""))
+        elif code == "E1b":
+            if x.get("bajadaMbps") is not None:
+                lines.append(f"Con el chip: bajada {x['bajadaMbps']:g} Mbps, subida {x.get('subidaMbps', '—')} Mbps"
+                             + (f", ping {x['pingMs']:g} ms." if x.get("pingMs") is not None else "."))
+        elif code == "E2":
+            if x.get("puertosLanLibres") is not None:
+                lines.append(f"Puertos LAN: {x.get('puertosLanTotales', '—')} en total, "
+                             f"{x.get('puertosLanOcupados', '—')} ocupados y {x['puertosLanLibres']} libres.")
         elif code == "E3":
             device = " ".join(v for v in (x.get("marca"), x.get("modelo")) if v)
             if device:

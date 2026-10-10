@@ -26,6 +26,7 @@ logger = logging.getLogger("idbi.evidence")
 
 _EVIDENCE_LABELS = {
     "E1": "la captura de una prueba de velocidad de internet (speedtest.net, fast.com u otra)",
+    "E1b": "la captura de una prueba de velocidad de internet hecha desde un celular con chip de datos (speedtest.net, fast.com u otra)",
     "E2": "un router/módem de internet en el lugar donde está instalado",
     "E3": "la etiqueta de un router, módem o switch",
     "E4": "la salida del comando ipconfig de Windows",
@@ -53,7 +54,16 @@ _FIELDS: Dict[str, Dict[str, str]] = {
         "servidor": "servidor contra el que se hizo la prueba (ciudad/empresa del servidor)",
         "fechaHora": "fecha y hora de la prueba",
     },
-    "E2": {"marca": "marca visible", "modelo": "modelo visible", "ubicacionVisual": "dónde está instalado"},
+    "E1b": {
+        "bajadaMbps": "velocidad de bajada en Mbps (número)",
+        "subidaMbps": "velocidad de subida en Mbps (número)",
+        "pingMs": "ping en reposo en ms (número)",
+        "proveedor": "operador del chip (el ISP que muestra la prueba)",
+    },
+    "E2": {"marca": "marca visible", "modelo": "modelo visible", "ubicacionVisual": "dónde está instalado",
+           "puertosLanTotales": "cantidad de puertos LAN (Ethernet) del router, sin contar WAN/PON, USB ni la entrada de energía (número)",
+           "puertosLanOcupados": "cuántos de esos puertos LAN tienen un cable conectado (número)",
+           "puertosLanLibres": "cuántos de esos puertos LAN están libres, sin cable (número)"},
     "E3": {
         "marca": "marca", "modelo": "modelo", "numeroSerie": "número de serie (SN)",
         "mac": "dirección MAC del equipo", "ipGestion": "IP o URL de gestión impresa en la etiqueta",

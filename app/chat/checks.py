@@ -241,6 +241,14 @@ def evaluate_rules(state: Dict[str, Any], pending_count: int = 0) -> List[Rule]:
         rules.append(Rule(rule=f"Velocidad medida ≥ {MIN_SPEED_MBPS:g} Mbps para POS y tablets",
                           result=f"{down:g} / {up:g} Mbps" if up is not None else f"{down:g} Mbps",
                           status=CUMPLE if down >= MIN_SPEED_MBPS else OBSERVADO))
+    # 1b velocidad con chip (E1b): local sin internet o con Sunmi
+    chip = first_extracted(state, "E1b")
+    chip_down = num(chip.get("bajadaMbps"))
+    if chip_down is not None:
+        rules.append(Rule(rule=f"Velocidad con chip ≥ {MIN_SPEED_MBPS:g} Mbps",
+                          result=f"{chip_down:g} Mbps desde un celular con chip",
+                          status=CUMPLE if chip_down >= MIN_SPEED_MBPS else OBSERVADO,
+                          short="la velocidad insuficiente del chip"))
     lat_d, lat_u = num(speed.get("latenciaBajadaMs")), num(speed.get("latenciaSubidaMs"))
     if lat_d is not None or lat_u is not None:
         worst = max(x for x in (lat_d, lat_u) if x is not None)
@@ -253,6 +261,23 @@ def evaluate_rules(state: Dict[str, Any], pending_count: int = 0) -> List[Rule]:
                           result=" · ".join(parts),
                           status=CUMPLE if worst < MAX_LATENCY_MS else OBSERVADO,
                           short="la latencia alta con la red en uso"))
+
+    # 2b puertos del router suficientes para los equipos por cable (R48)
+    from app.chat.flow_engine import Session as _Session
+
+    ses = _Session(state)
+    libres = ses.derived_puertosLibresRouter()
+    if libres is not None:
+        cable = ses.derived_equiposCableados()
+        faltan = ses.derived_faltanPuertos()
+        if faltan > 0:
+            rules.append(Rule(rule="Puertos del router suficientes para los equipos por cable",
+                              result=f"{cable} equipos por cable y {libres} puertos libres: falta un switch de "
+                                     f"{ses.derived_tamanoSwitch()} puertos",
+                              status=OBSERVADO, short="los puertos del router insuficientes"))
+        else:
+            rules.append(Rule(rule="Puertos del router suficientes para los equipos por cable",
+                              result=f"{cable} equipos por cable y {libres} puertos libres", status=CUMPLE))
 
     # 3 PC de caja por cable
     for c in cajas(state):

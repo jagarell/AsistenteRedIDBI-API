@@ -100,7 +100,17 @@
   ],
   "derived": {
     "areasSinImpresora": "P25 menos todas las áreas ya asignadas a una impresora en $registry.printers (se recalcula en cada paso)",
-    "necesitaComandas": "P11 incluye al menos un área de preparación ($prepAreas)"
+    "necesitaComandas": "P11 incluye al menos un área de preparación ($prepAreas)",
+    "sinInternet": "P14 = No tiene o No sé",
+    "sinPcEnCaja": "alguna caja respondió No, No sé u Otro en P22",
+    "conexionImpresoraCaja": "P30 de la impresora cuyas áreas incluyen CAJA",
+    "puertosLibresRouter": "E2.puertosLanLibres confirmado por el técnico; si no se pudo leer, P18a",
+    "equiposCableados": "impresoras de red + PCs por cable + Raspberry + (access point o 1.er repetidor)",
+    "faltanPuertos": "equiposCableados − puertosLibresRouter (0 si no se conocen los puertos)",
+    "tamanoSwitch": "menor de 5/8/16/24 puertos que cubra faltanPuertos + 1",
+    "puntosRedFaltantes": "equipos por cable sin punto de red cerca (U1 = No)",
+    "zonasSinSenal": "P46 sin 'Ninguna'",
+    "sugerenciaWifi": "access point si la zona tiene punto de red; repetidor si no"
   },
   "registries": {
     "printers": "Impresoras existentes (P27–P31) y nuevas (P32c). Campos: id, label, areas[], ubicacion, conexion, existing",
@@ -544,15 +554,31 @@
         "rules": [
           {
             "if": {
-              "in": [
-                "$P14",
-                [
-                  "NO_TIENE",
-                  "NO_SE"
-                ]
+              "eq": [
+                "$derived.sinInternet",
+                true
               ]
             },
-            "goto": "P16"
+            "goto": "P14b"
+          },
+          {
+            "if": {
+              "and": [
+                {
+                  "eq": [
+                    "$P12b",
+                    "SI"
+                  ]
+                },
+                {
+                  "eq": [
+                    "$derived.necesitaComandas",
+                    false
+                  ]
+                }
+              ]
+            },
+            "goto": "P14b"
           }
         ],
         "default": "P15"
@@ -584,18 +610,194 @@
       "effects": [
         {
           "if": {
-            "in": [
-              "$P14",
-              [
-                "NO_TIENE",
-                "NO_SE"
-              ]
+            "eq": [
+              "$derived.sinInternet",
+              true
             ]
           },
-          "addAlert": "El local no tiene internet (o no se sabe): no hay velocidad que medir.",
-          "addAction": "Probar la señal del chip (Entel o Claro) con un celular dentro del local y, si hay comandas, evaluar un router con chip."
+          "addAlert": "El local no tiene internet (o no se sabe): no hay velocidad contratada que medir."
         }
       ]
+    },
+    {
+      "id": "P14b",
+      "kind": "question",
+      "block": "C",
+      "inputType": "CHOICE",
+      "text": "Pon el chip en un celular dentro del local. ¿Qué chip tiene señal?",
+      "field": "internet.senalChip",
+      "required": true,
+      "options": [
+        {
+          "value": "ENTEL",
+          "label": "Entel"
+        },
+        {
+          "value": "CLARO",
+          "label": "Claro"
+        },
+        {
+          "value": "AMBOS",
+          "label": "Ambos"
+        },
+        {
+          "value": "NINGUNO",
+          "label": "Ninguno"
+        }
+      ],
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "ne": [
+                "$P14b",
+                "NINGUNO"
+              ]
+            },
+            "goto": "E1b"
+          },
+          {
+            "if": {
+              "eq": [
+                "$derived.sinInternet",
+                true
+              ]
+            },
+            "goto": "P16"
+          }
+        ],
+        "default": "P15"
+      },
+      "minuta": "internet",
+      "help": "Solo si el local no tiene internet o si va un Sunmi (que funciona con chip aunque haya fibra).",
+      "effects": [
+        {
+          "if": {
+            "and": [
+              {
+                "eq": [
+                  "$derived.sinInternet",
+                  true
+                ]
+              },
+              {
+                "eq": [
+                  "$derived.necesitaComandas",
+                  true
+                ]
+              },
+              {
+                "ne": [
+                  "$P14b",
+                  "NINGUNO"
+                ]
+              }
+            ]
+          },
+          "addAction": "Recomendar un router con chip {P14b.label} como internet del local."
+        },
+        {
+          "if": {
+            "and": [
+              {
+                "eq": [
+                  "$derived.sinInternet",
+                  true
+                ]
+              },
+              {
+                "eq": [
+                  "$derived.necesitaComandas",
+                  false
+                ]
+              },
+              {
+                "ne": [
+                  "$P14b",
+                  "NINGUNO"
+                ]
+              }
+            ]
+          },
+          "addAlert": "Sin internet y sin áreas de preparación: no se recomienda router con chip."
+        },
+        {
+          "if": {
+            "and": [
+              {
+                "eq": [
+                  "$derived.sinInternet",
+                  true
+                ]
+              },
+              {
+                "eq": [
+                  "$P14b",
+                  "NINGUNO"
+                ]
+              }
+            ]
+          },
+          "addAlert": "Sin fibra, cable coaxial ni señal de chip: evaluar internet satelital y agendar segunda visita.",
+          "addAction": "Evaluar internet satelital y agendar una segunda visita (no hay fibra, cable coaxial ni señal de chip)."
+        },
+        {
+          "if": {
+            "and": [
+              {
+                "eq": [
+                  "$derived.sinInternet",
+                  false
+                ]
+              },
+              {
+                "eq": [
+                  "$P14b",
+                  "NINGUNO"
+                ]
+              }
+            ]
+          },
+          "addAlert": "Sin señal de chip en el local: el Sunmi no funcionaría con chip. Validar el WiFi del local.",
+          "addAction": "Validar la señal del chip (Entel o Claro) antes de comprar el Sunmi: en la prueba no hubo señal."
+        }
+      ]
+    },
+    {
+      "id": "E1b",
+      "kind": "evidence",
+      "evidenceCode": "E1b",
+      "block": "C",
+      "inputType": "EVIDENCE",
+      "text": "Sube la captura del speedtest hecho desde el celular con el chip.",
+      "field": "evidencias.speedtestChip",
+      "required": true,
+      "accept": [
+        "image/jpeg",
+        "image/png"
+      ],
+      "maxFiles": 3,
+      "aiExtract": [
+        "bajadaMbps",
+        "subidaMbps",
+        "pingMs",
+        "proveedor"
+      ],
+      "minuta": "evidencias",
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "eq": [
+                "$derived.sinInternet",
+                true
+              ]
+            },
+            "goto": "P16"
+          }
+        ],
+        "default": "P15"
+      }
     },
     {
       "id": "P15",
@@ -720,10 +922,47 @@
       "aiExtract": [
         "marca",
         "modelo",
-        "ubicacionVisual"
+        "ubicacionVisual",
+        "puertosLanTotales",
+        "puertosLanOcupados",
+        "puertosLanLibres"
       ],
       "minuta": "evidencias",
-      "next": "P21"
+      "next": "G_PUERTOS_E2"
+    },
+    {
+      "id": "G_PUERTOS_E2",
+      "kind": "router",
+      "block": "C",
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "eq": [
+                "$derived.puertosLeidos",
+                true
+              ]
+            },
+            "goto": "P21"
+          }
+        ],
+        "default": "P18a"
+      }
+    },
+    {
+      "id": "P18a",
+      "kind": "question",
+      "block": "C",
+      "inputType": "NUMBER",
+      "text": "No se pudieron leer los puertos en la foto del router. ¿Cuántos puertos LAN libres tiene?",
+      "field": "internet.puertosLibresRouter",
+      "required": true,
+      "next": "P21",
+      "minuta": "internet",
+      "validation": {
+        "min": 0,
+        "max": 48
+      }
     },
     {
       "id": "P21",
@@ -817,7 +1056,7 @@
             "goto": "P22f"
           }
         ],
-        "default": "A_RASPBERRY"
+        "default": "P22a"
       },
       "options": [
         {
@@ -875,7 +1114,7 @@
       "text": "Caja {i}: ¿qué equipo hay en caja?",
       "field": "cajas[{i}].equipoOtro",
       "required": true,
-      "next": "A_RASPBERRY",
+      "next": "P22a",
       "minuta": "equipos_caja",
       "validation": {
         "minLength": 2
@@ -897,20 +1136,6 @@
       "effects": [
         {
           "addAction": "Caja {i}: adquirir un kit Raspberry (obligatorio por usar tablet). Cotizar con Desarrollo de Negocios."
-        }
-      ]
-    },
-    {
-      "id": "A_RASPBERRY",
-      "kind": "alert",
-      "block": "D",
-      "severity": "warning",
-      "text": "No hay un equipo en Caja {i} para el sistema de impresiones. Recomienda al cliente instalar un Raspberry para el sistema de impresiones.",
-      "requiresAck": true,
-      "next": "P22a",
-      "effects": [
-        {
-          "addAction": "Caja {i}: se recomendó Raspberry para el sistema de impresiones."
         }
       ]
     },
@@ -1041,6 +1266,15 @@
             ]
           },
           "addAlert": "PC de Caja {i} por WiFi: recomendar cable de red para el sistema de impresiones."
+        },
+        {
+          "if": {
+            "eq": [
+              "$derived.necesitaComandas",
+              true
+            ]
+          },
+          "addAction": "Caja {i}: instalar el controlador de impresiones en la PC o laptop."
         }
       ],
       "topology": {
@@ -1308,7 +1542,7 @@
             "goto": "A_SIN_IMPRESORA"
           }
         ],
-        "default": "P33"
+        "default": "G_IMPRESION"
       }
     },
     {
@@ -1330,7 +1564,168 @@
       },
       "itemLabel": "{item.label}",
       "body": "P32",
-      "exit": "P33"
+      "exit": "G_IMPRESION"
+    },
+    {
+      "id": "G_IMPRESION",
+      "kind": "router",
+      "block": "E",
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "and": [
+                {
+                  "eq": [
+                    "$derived.sinPcEnCaja",
+                    true
+                  ]
+                },
+                {
+                  "eq": [
+                    "$derived.necesitaComandas",
+                    false
+                  ]
+                },
+                {
+                  "eq": [
+                    "$P12b",
+                    "NO"
+                  ]
+                }
+              ]
+            },
+            "goto": "A_IMP_PC_BASICA"
+          },
+          {
+            "if": {
+              "and": [
+                {
+                  "eq": [
+                    "$derived.sinPcEnCaja",
+                    true
+                  ]
+                },
+                {
+                  "eq": [
+                    "$derived.conexionImpresoraCaja",
+                    "USB"
+                  ]
+                }
+              ]
+            },
+            "goto": "A_IMP_PC_CONTROLADOR"
+          },
+          {
+            "if": {
+              "and": [
+                {
+                  "eq": [
+                    "$derived.sinPcEnCaja",
+                    true
+                  ]
+                },
+                {
+                  "eq": [
+                    "$derived.necesitaComandas",
+                    true
+                  ]
+                }
+              ]
+            },
+            "goto": "A_IMP_RASPBERRY"
+          }
+        ],
+        "default": "G_PUERTOS"
+      }
+    },
+    {
+      "id": "A_IMP_RASPBERRY",
+      "kind": "alert",
+      "block": "E",
+      "severity": "warning",
+      "requiresAck": true,
+      "text": "No hay PC ni laptop en caja y las impresoras son de red. Recomienda un kit Raspberry para el controlador de impresiones. Cotízalo con Desarrollo de Negocios.",
+      "next": "G_PUERTOS",
+      "effects": [
+        {
+          "addAction": "Cotizar el kit Raspberry con el equipo de Desarrollo de Negocios."
+        }
+      ]
+    },
+    {
+      "id": "A_IMP_PC_CONTROLADOR",
+      "kind": "alert",
+      "block": "E",
+      "severity": "warning",
+      "requiresAck": true,
+      "text": "La impresora de caja es USB y solo funciona con laptop o PC, no con Raspberry. Recomienda una laptop o PC para el controlador de impresiones.",
+      "next": "G_PUERTOS",
+      "effects": [
+        {
+          "addAction": "El cliente adquirirá una laptop o PC para el controlador de impresiones."
+        }
+      ]
+    },
+    {
+      "id": "A_IMP_PC_BASICA",
+      "kind": "alert",
+      "block": "E",
+      "severity": "info",
+      "requiresAck": true,
+      "text": "No hay áreas de preparación ni comanda. Recomienda una laptop o PC básica con USB para pre-cuentas y comprobantes; sin controlador.",
+      "next": "G_PUERTOS",
+      "effects": [
+        {
+          "addAction": "El cliente adquirirá una laptop o PC básica con USB."
+        }
+      ]
+    },
+    {
+      "id": "G_PUERTOS",
+      "kind": "router",
+      "block": "E",
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "gt": [
+                "$derived.faltanPuertos",
+                0
+              ]
+            },
+            "goto": "A_FALTAN_PUERTOS"
+          }
+        ],
+        "default": "P33"
+      }
+    },
+    {
+      "id": "A_FALTAN_PUERTOS",
+      "kind": "alert",
+      "block": "E",
+      "severity": "warning",
+      "requiresAck": true,
+      "text": "El router tiene {derived.puertosLibresRouter} puertos libres y hay {derived.equiposCableados} equipos por cable. Recomienda un switch de {derived.tamanoSwitch} puertos e implementar {derived.puntosRedFaltantes} puntos de red (un extremo en el router o el switch y el otro junto a cada equipo).",
+      "next": "U_SWITCH",
+      "effects": [
+        {
+          "addAction": "Implementar un switch de {derived.tamanoSwitch} puertos y {derived.puntosRedFaltantes} puntos de red (un extremo en el router o el switch y el otro junto a cada equipo)."
+        }
+      ]
+    },
+    {
+      "id": "U_SWITCH",
+      "kind": "subflow_call",
+      "block": "E",
+      "subflow": "U",
+      "params": {
+        "area": "$P18",
+        "equipo": "Switch nuevo",
+        "needsNetwork": false,
+        "needsPower": true
+      },
+      "next": "P33"
     },
     {
       "id": "P32",
@@ -1916,7 +2311,17 @@
       "text": "¿Hay zonas sin señal WiFi?",
       "field": "wifi.zonasSinSenal",
       "required": true,
-      "next": "P47",
+      "next": {
+        "rules": [
+          {
+            "if": {
+              "notEmpty": "$derived.zonasSinSenal"
+            },
+            "goto": "P46a"
+          }
+        ],
+        "default": "P47"
+      },
       "options": {
         "from": "$P11",
         "plus": [
@@ -1927,6 +2332,66 @@
         ]
       },
       "minuta": "red_inalambrica"
+    },
+    {
+      "id": "P46a",
+      "kind": "question",
+      "block": "H",
+      "inputType": "CHOICE",
+      "text": "Sugerencia: {derived.sugerenciaWifi}. ¿Qué se instalará en las zonas sin señal?",
+      "field": "wifi.solucion",
+      "required": true,
+      "options": [
+        {
+          "value": "REPETIDOR",
+          "label": "Repetidor"
+        },
+        {
+          "value": "ACCESS_POINT",
+          "label": "Access point"
+        },
+        {
+          "value": "AMBOS",
+          "label": "Ambos"
+        }
+      ],
+      "next": "L_ZONAS_SIN_SENAL",
+      "minuta": "red_inalambrica",
+      "effects": [
+        {
+          "addAction": "WiFi: instalar {answer.label} para cubrir las zonas sin señal ({derived.zonasSinSenal.labels}). Todo el local debe tener WiFi para que los meseros comanden."
+        }
+      ]
+    },
+    {
+      "id": "L_ZONAS_SIN_SENAL",
+      "kind": "loop",
+      "block": "H",
+      "over": {
+        "list": "$derived.zonasSinSenal",
+        "snapshot": true
+      },
+      "itemLabel": "{item.label}",
+      "body": "U_WIFI",
+      "exit": "P47"
+    },
+    {
+      "id": "U_WIFI",
+      "kind": "subflow_call",
+      "block": "H",
+      "subflow": "U",
+      "params": {
+        "area": "{item.value}",
+        "equipo": "Repetidor/AP – {item.label}",
+        "needsNetwork": {
+          "eq": [
+            "$loop.index",
+            1
+          ]
+        },
+        "needsPower": true
+      },
+      "next": "@loop.next"
     },
     {
       "id": "P47",
@@ -2282,7 +2747,18 @@
             ],
             "default": "U7"
           },
-          "minuta": "siguientes_acciones"
+          "minuta": "siguientes_acciones",
+          "effects": [
+            {
+              "if": {
+                "eq": [
+                  "$U5",
+                  "NO"
+                ]
+              },
+              "addAction": "{ctx.equipo}: necesitará un punto de energía adicional o una extensión (no hay toma cerca)."
+            }
+          ]
         },
         {
           "id": "U6",

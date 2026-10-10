@@ -35,7 +35,7 @@ def fake_analyze(code, images, scope=""):
         "E1": {"bajadaMbps": 91.5, "subidaMbps": 92.49, "pingMs": 8, "latenciaBajadaMs": 171,
                "latenciaSubidaMs": 295, "proveedor": "Google", "servidor": "Servitronic (Ancón)",
                "descripcion": "Captura de speedtest."},
-        "E2": {"marca": "Huawei", "descripcion": "Sticker de Claro con su línea de atención: confirma el proveedor. "
+        "E2": {"marca": "Huawei", "puertosLanTotales": 4, "puertosLanOcupados": 1, "puertosLanLibres": 3, "descripcion": "Sticker de Claro con su línea de atención: confirma el proveedor. "
                                                   "Repetidor junto al router y cables rotulados."},
         "E3": {"marca": "Huawei", "modelo": "OptiXstar HG8145X6-10", "numeroSerie": "485754437863FFB3",
                "mac": "F8:95:22:93:F3:D6", "ipGestion": "192.168.100.1", "descripcion": "Etiqueta del router."},

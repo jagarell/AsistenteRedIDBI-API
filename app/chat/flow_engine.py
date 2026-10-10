@@ -173,6 +173,8 @@ class Session:
             return self.s["calls"][-1]["ctx"].get(name[4:])
         if name == "item":
             return str(self.cur_item())
+        if name == "loop.index":
+            return self.s["loops"][-1]["idx"] + 1 if self.s["loops"] else 0
         if name == "prepAreas":
             return FLOW.data.get("prepAreas", [])
         if name.startswith("derived."):
@@ -190,6 +192,97 @@ class Session:
         need = self.get("$P25") or []
         used = {a for p in self.s["printers"] for a in p["areas"]}
         return [a for a in need if a not in used]
+
+    # ---- valores derivados (se recalculan en cada paso; no son preguntas) -------
+    def answers_of(self, nid: str) -> List[Tuple[str, Any]]:
+        """Todas las respuestas de un nodo, de cualquier alcance: [(alcance, valor)]."""
+        out = []
+        for k, v in self.s["answers"].items():
+            base, _, sc = k.partition("#")
+            if base == nid:
+                out.append((sc, v))
+        return out
+
+    def derived_necesitaComandas(self) -> bool:
+        """Hay al menos un área de preparación (bar, cocina, jugos...): ahí van las impresoras de comandas."""
+        prep = FLOW.data.get("prepAreas", [])
+        return any(a in prep for a in (self.get("$P11") or []))
+
+    def derived_sinInternet(self) -> bool:
+        """"No tiene" y "No sé" se toman como que el local no tiene internet."""
+        return self.get("$P14") in ("NO_TIENE", "NO_SE")
+
+    def derived_sinPcEnCaja(self) -> bool:
+        return any(v in ("NO", "NO_SE", "OTRO") for _, v in self.answers_of("P22"))
+
+    def derived_conexionImpresoraCaja(self) -> Optional[str]:
+        """Cómo se conecta la impresora cuyas áreas incluyen CAJA (USB | CABLE_RED | WIFI | BLUETOOTH)."""
+        for p in self.s["printers"]:
+            if "CAJA" in p["areas"] and p.get("scope"):
+                conn = self.s["answers"].get(f"P30#{p['scope']}") or self.s["answers"].get(f"P32c#{p['scope']}")
+                if conn:
+                    return conn
+        return None
+
+    def derived_puertosLibresRouter(self) -> Optional[int]:
+        """Puertos LAN libres: lo leído en la foto del router (E2) y confirmado; si no se pudo leer, P18a."""
+        for e in self.s["evidences"]:
+            if e["code"] == "E2":
+                v = (e.get("extracted") or {}).get("puertosLanLibres")
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    return int(v)
+        v = self.s["answers"].get("P18a")
+        return int(v) if isinstance(v, (int, float)) else None
+
+    def derived_puertosLeidos(self) -> bool:
+        return any(
+            e["code"] == "E2" and isinstance((e.get("extracted") or {}).get("puertosLanLibres"), (int, float))
+            for e in self.s["evidences"]
+        )
+
+    def derived_equiposCableados(self) -> int:
+        """Equipos que van por cable al router: impresoras de red, PCs por cable, Raspberry y access point."""
+        a = self.s["answers"]
+        printers = sum(1 for k, v in a.items() if k.startswith("P30#") and v == "CABLE_RED")
+        printers += sum(1 for k, v in a.items() if k.startswith("P32c") and v == "CABLE_RED")
+        pcs = sum(1 for k, v in a.items() if k.startswith("P23#") and v == "CABLE_RED")
+        # Raspberry que el cliente ya tiene y va por cable, o que va a adquirir
+        raspberry = sum(1 for k, v in a.items()
+                        if k.startswith("P22a#") and v == "SI" and a.get("P22c#" + k.split("#", 1)[1]) == "CABLE_RED")
+        raspberry += sum(1 for k, v in a.items() if k.startswith("P22b#") and v == "RASPBERRY")
+        wifi = 1 if (self.derived_zonasSinSenal() or a.get("P45") == "SI") else 0
+        return printers + pcs + raspberry + wifi
+
+    def derived_faltanPuertos(self) -> int:
+        libres = self.derived_puertosLibresRouter()
+        if libres is None:
+            return 0
+        return max(0, self.derived_equiposCableados() - libres)
+
+    def derived_tamanoSwitch(self) -> int:
+        need = self.derived_faltanPuertos() + 1   # +1 puerto para unir el switch al router
+        return next((n for n in (5, 8, 16, 24) if n >= need), 48)
+
+    def derived_puntosRedFaltantes(self) -> int:
+        """Un cable por cada equipo sin punto de red cerca (U1 = No); si no se preguntó, uno por puerto que falta."""
+        sin_punto = sum(1 for _, v in self.answers_of("U1") if v == "NO")
+        return sin_punto or self.derived_faltanPuertos()
+
+    def derived_zonasSinSenal(self) -> List[str]:
+        return [z for z in (self.get("$P46") or []) if z != "NINGUNA"]
+
+    def derived_sugerenciaWifi(self) -> str:
+        """Access point si la zona tiene punto de red cerca; repetidor si no."""
+        sin_punto = set(self.get("$P38a") or []) if self.get("$P38") == "NO" else set()
+        zones = self.derived_zonasSinSenal()
+        ap = [z for z in zones if z not in sin_punto]
+        rep = [z for z in zones if z in sin_punto]
+        parts = []
+        if ap:
+            parts.append("access point en " + ", ".join(self.label_of(z) for z in ap))
+        if rep:
+            parts.append("repetidor en " + ", ".join(self.label_of(z) for z in rep))
+        return " y ".join(parts) or "repetidor"
 
     # ---- etiquetas ----------------------------------------------------
     def label_of(self, value: Any) -> str:
@@ -260,8 +353,11 @@ class Session:
                 v = self.s["calls"][-1]["ctx"].get(k[4:].replace(".label", ""), "")
                 return self.label_of(v) if k.endswith(".label") else str(v)
             if k.startswith("derived."):
-                v = self.get("$" + k.rsplit(".", 1)[0]) or []
-                return ", ".join(self.label_of(x) for x in v)
+                name = k[:-len(".labels")] if k.endswith(".labels") else k
+                v = self.get("$" + name)
+                if isinstance(v, list):
+                    return ", ".join(self.label_of(x) for x in v)
+                return "" if v is None else str(v)
             if k.endswith(".label") or k.endswith(".labels"):
                 v = self.get("$" + k.split(".")[0])
                 v = v if isinstance(v, list) else [v]

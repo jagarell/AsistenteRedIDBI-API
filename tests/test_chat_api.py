@@ -36,7 +36,7 @@ ANSWERS = {
     "P04": "Gianfranco, gerente", "P05": "987654321", "P06": "31/05/2026", "P07": "Yomira Mora",
     "P08": "IMPLEMENTACION", "P09": "FAST_FOOD", "P10": "1",
     "P11": "SALON_1,CAJA,COCINA,BAR", "P12": "1", "P12b": "NO", "P13": "CLARO", "P14": "FIBRA", "P15": "100",
-    "P16": "NO", "P17": "NO", "P18": "CAJA", "P22": "SI", "P23": "WIFI",
+    "P16": "NO", "P17": "NO", "P18": "CAJA", "P18a": "6", "P22": "SI", "P23": "WIFI",
     "P25": "CAJA,COCINA", "P26": "2", "P29": "EPSON", "P30": "USB",
     "U1": "NO", "U3": "Pared de la plancha", "U5": "SI",
     "P33": "SI", "P34": "NO", "P35": "NO", "P36": "NO", "P37": "5", "P38": "SI", "P39": "CAT6_INT",
