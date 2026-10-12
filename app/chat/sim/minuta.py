@@ -339,7 +339,7 @@ def build_document(state_answers: Dict[str, Any], ctx: Dict[str, Any], edits: Op
     h2("Datos generales")
     blocks.append(_table(sec["sec1"]))
     h2("Antecedentes")
-    blocks.append({"t": "p", "text": f'La visita se realiza para la implementación del punto de venta, donde el local se encuentra en estado de "{X.estadoL}". '
+    blocks.append({"t": "para", "text": f'La visita se realiza para la implementación del punto de venta, donde el local se encuentra en estado de "{X.estadoL}". '
                                     "En la visita se realizarán acciones como validar los equipos tecnológicos y de red y el estado de los mismos, y se le recomendará una mejor infraestructura si lo necesitara."})
     h2("Desarrollo y hallazgos")
     blocks.append({"t": "h3", "text": "Negocio"})
@@ -381,17 +381,17 @@ def build_document(state_answers: Dict[str, Any], ctx: Dict[str, Any], edits: Op
     if has_obs:
         h2("Observaciones")
         if o.get("tec"):
-            blocks.append({"t": "p", "text": o["tec"]})
+            blocks.append({"t": "para", "text": o["tec"]})
         if o.get("serie"):
-            blocks.append({"t": "p", "text": f"Serie de facturación: {o['serie']}"})
+            blocks.append({"t": "para", "text": f"Serie de facturación: {o['serie']}"})
         if o.get("viab"):
-            blocks.append({"t": "p", "text": f"¿El cliente acepta la recomendación? {o.get('viabOtro') if o['viab'] == 'Otro' else o['viab']}"})
+            blocks.append({"t": "para", "text": f"¿El cliente acepta la recomendación? {o.get('viabOtro') if o['viab'] == 'Otro' else o['viab']}"})
         if pago:
-            blocks.append({"t": "p", "text": f"El método de pago que utilizan en el local es el siguiente: {', '.join(pago)}."})
+            blocks.append({"t": "para", "text": f"El método de pago que utilizan en el local es el siguiente: {', '.join(pago)}."})
         if o.get("otroT"):
-            blocks.append({"t": "p", "b": f"{o['otroT']}:", "text": o.get("otroC") or ""})
+            blocks.append({"t": "para", "b": f"{o['otroT']}:", "text": o.get("otroC") or ""})
         for c in cambios:
-            blocks.append({"t": "p", "text": f"Cambio pedido en el chat: {c}"})
+            blocks.append({"t": "para", "text": f"Cambio pedido en el chat: {c}"})
     h2("Resumen ejecutivo")
     blocks.append({"t": "exec", "status": R.estado, "ok": R.estado == "APTO", "text": resumen_ia(X, R, name)})
     h2("Aviso de viabilidad")
