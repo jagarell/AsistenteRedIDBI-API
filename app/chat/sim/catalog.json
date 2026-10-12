@@ -1,0 +1,1790 @@
+{
+ "RUBROS": [
+  [
+   "REST_PESCADOS",
+   "Restaurante – Pescados y mariscos"
+  ],
+  [
+   "REST_ORIENTAL",
+   "Restaurante – Comida oriental"
+  ],
+  [
+   "RESTAURANTE",
+   "Restaurante (otro tipo de comida)"
+  ],
+  [
+   "CHIFA",
+   "Chifa"
+  ],
+  [
+   "PIZZERIA",
+   "Pizzería"
+  ],
+  [
+   "PARRILLA",
+   "Parrilla / Anticuchería"
+  ],
+  [
+   "POLLERIA",
+   "Pollería"
+  ],
+  [
+   "FAST_FOOD",
+   "Fast food"
+  ],
+  [
+   "RESTOBAR",
+   "Restobar"
+  ],
+  [
+   "DISCOTECA_BAR",
+   "Discoteca o bar"
+  ],
+  [
+   "CAFETERIA",
+   "Cafetería"
+  ],
+  [
+   "HELADERIA",
+   "Heladería"
+  ],
+  [
+   "HOSPEDAJE",
+   "Hotel"
+  ],
+  [
+   "RETAIL",
+   "Retail – Supermercado"
+  ],
+  [
+   "OTRO",
+   "Otro (escribir)"
+  ]
+ ],
+ "PERFIL": {
+  "REST_PESCADOS": {
+   "un": "Un restaurante de pescados y mariscos",
+   "prep": [
+    "Fríos",
+    "Calientes",
+    "Bebidas"
+   ],
+   "mesa": [
+    "Salón 1"
+   ],
+   "canales": [
+    "Mesa",
+    "Recojo",
+    "Delivery"
+   ],
+   "caja": "Bebidas"
+  },
+  "REST_ORIENTAL": {
+   "un": "Un restaurante de comida oriental",
+   "prep": [
+    "Salteados",
+    "Ramen",
+    "Makis",
+    "Frituras",
+    "Bebidas"
+   ],
+   "mesa": [
+    "Salón 1",
+    "Barra"
+   ],
+   "canales": [
+    "Mesa",
+    "Recojo",
+    "Delivery"
+   ]
+  },
+  "RESTAURANTE": {
+   "un": "Un restaurante",
+   "prep": [
+    "Cocina",
+    "Barra",
+    "Jugos",
+    "Cafetería"
+   ],
+   "mesa": [
+    "Salón 1",
+    "Salón 2",
+    "Terraza"
+   ],
+   "canales": [
+    "Mesa",
+    "Recojo",
+    "Delivery"
+   ],
+   "caja": "Barra"
+  },
+  "CHIFA": {
+   "un": "Un chifa",
+   "prep": [
+    "Cocina",
+    "Despacho",
+    "Bebidas"
+   ],
+   "mesa": [
+    "Salón 1",
+    "Salón 2"
+   ],
+   "canales": [
+    "Mesa",
+    "Recojo",
+    "Delivery"
+   ]
+  },
+  "PIZZERIA": {
+   "un": "Una pizzería",
+   "prep": [
+    "Bebidas",
+    "Pizzas"
+   ],
+   "mesa": [
+    "Salón 1"
+   ],
+   "canales": [
+    "Recojo",
+    "Delivery"
+   ]
+  },
+  "PARRILLA": {
+   "un": "Una parrilla o anticuchería",
+   "prep": [
+    "Parrilla",
+    "Cocina",
+    "Bebidas"
+   ],
+   "mesa": [
+    "Salón 1",
+    "Terraza"
+   ],
+   "canales": [
+    "Mesa",
+    "Recojo",
+    "Delivery"
+   ],
+   "caja": "Parrilla"
+  },
+  "POLLERIA": {
+   "un": "Una pollería",
+   "prep": [
+    "Brasas",
+    "Cocina",
+    "Bebidas",
+    "Despacho"
+   ],
+   "mesa": [
+    "Salón 1",
+    "Salón 2"
+   ],
+   "canales": [
+    "Mesa",
+    "Recojo",
+    "Delivery"
+   ]
+  },
+  "FAST_FOOD": {
+   "un": "Un fast food",
+   "prep": [
+    "Cocina",
+    "Barra"
+   ],
+   "mesa": [
+    "Salón 1"
+   ],
+   "canales": [
+    "Recojo",
+    "Delivery"
+   ]
+  },
+  "RESTOBAR": {
+   "un": "Un restobar",
+   "prep": [
+    "Barra 1",
+    "Barra 2",
+    "Cocina"
+   ],
+   "mesa": [
+    "Salón 1",
+    "Salón 2",
+    "Terraza",
+    "Barra"
+   ],
+   "canales": [
+    "Recojo",
+    "Mesa"
+   ]
+  },
+  "DISCOTECA_BAR": {
+   "un": "Una discoteca o bar",
+   "prep": [
+    "Barra 1",
+    "Barra 2",
+    "Cocina"
+   ],
+   "mesa": [
+    "Pista",
+    "Salón 1",
+    "Barra"
+   ],
+   "canales": [
+    "Recojo"
+   ]
+  },
+  "CAFETERIA": {
+   "un": "Una cafetería",
+   "prep": [
+    "Barra"
+   ],
+   "mesa": [
+    "Salón 1"
+   ],
+   "canales": [
+    "Recojo",
+    "Delivery"
+   ]
+  },
+  "HELADERIA": {
+   "un": "Una heladería",
+   "prep": [
+    "Barra"
+   ],
+   "mesa": [
+    "Salón 1"
+   ],
+   "canales": [
+    "Recojo",
+    "Delivery"
+   ]
+  },
+  "HOSPEDAJE": {
+   "un": "Un hotel",
+   "prep": [
+    "Cocina",
+    "Barra"
+   ],
+   "mesa": [
+    "Restaurante",
+    "Terraza",
+    "Áreas comunes"
+   ],
+   "canales": [
+    "Habitaciones",
+    "Mesa",
+    "Recojo"
+   ]
+  },
+  "RETAIL": {
+   "un": "Un retail",
+   "prep": [],
+   "mesa": [],
+   "canales": [
+    "Recojo",
+    "Delivery",
+    "Backoffice"
+   ]
+  },
+  "OTRO": {
+   "un": "El local",
+   "prep": [],
+   "mesa": [],
+   "canales": []
+  }
+ },
+ "PREP_ALL": [
+  "Cocina",
+  "Jugos",
+  "Cafetería",
+  "Bebidas",
+  "Fríos",
+  "Calientes",
+  "Pizzas",
+  "Despacho",
+  "Cocina 1",
+  "Cocina 2",
+  "Barra",
+  "Barra 1",
+  "Barra 2",
+  "Barra 3",
+  "Parrilla",
+  "Brasas",
+  "Pizza",
+  "Makis",
+  "Ramen",
+  "Frituras",
+  "Salteados",
+  "Barra de café",
+  "Barra de helados",
+  "Barra de bebidas",
+  "Bar",
+  "Empaquetados"
+ ],
+ "MESA_ALL": [
+  "Salón 1",
+  "Salón 2",
+  "Salón 3",
+  "Terraza",
+  "Balcón",
+  "Privado",
+  "Patio",
+  "Pista",
+  "Barra",
+  "Barra 1",
+  "Barra 2"
+ ],
+ "CANALES": [
+  "Mesa",
+  "Recojo",
+  "Para llevar",
+  "Delivery",
+  "Backoffice",
+  "Habitaciones"
+ ],
+ "ZONAS_CANAL": {
+  "Habitaciones": [
+   "Habitaciones",
+   "Room service"
+  ],
+  "Recojo": [
+   "Caja",
+   "Mostrador",
+   "Ventanilla"
+  ],
+  "Para llevar": [
+   "Mostrador",
+   "Ventanilla",
+   "Caja"
+  ],
+  "Backoffice": [
+   "Administración",
+   "Almacén"
+  ],
+  "Delivery": [
+   "Despacho",
+   "Ventanilla",
+   "Caja"
+  ]
+ },
+ "ESTADOS": [
+  {
+   "v": "EN_OPERACION",
+   "l": "En operación"
+  },
+  {
+   "v": "EN_OBRA",
+   "l": "En obra"
+  },
+  {
+   "v": "POR_INAUGURAR",
+   "l": "Por inaugurar"
+  },
+  {
+   "v": "SISTEMA_ANTERIOR",
+   "l": "Ya cuenta con un sistema de punto de venta anterior"
+  },
+  {
+   "v": "OTRO",
+   "l": "Otro (escribir)",
+   "otro": true
+  }
+ ],
+ "CONEX": [
+  {
+   "v": "FIBRA",
+   "l": "Fibra óptica"
+  },
+  {
+   "v": "COAXIAL",
+   "l": "Cable coaxial"
+  },
+  {
+   "v": "CHIP",
+   "l": "Internet con chip"
+  },
+  {
+   "v": "NO_SE",
+   "l": "No sé"
+  },
+  {
+   "v": "NO_TIENE",
+   "l": "No tiene"
+  },
+  {
+   "v": "POR_CONTRATAR",
+   "l": "Va a contratar internet antes de implementar"
+  }
+ ],
+ "MOZOS": [
+  "REST_PESCADOS",
+  "PARRILLA",
+  "RESTAURANTE",
+  "HOSPEDAJE",
+  "PIZZERIA",
+  "CHIFA",
+  "RESTOBAR",
+  "DISCOTECA_BAR",
+  "POLLERIA",
+  "REST_ORIENTAL",
+  "FAST_FOOD",
+  "CAFETERIA",
+  "HELADERIA"
+ ],
+ "MOZOS_RARO": [
+  "FAST_FOOD",
+  "CAFETERIA",
+  "HELADERIA"
+ ],
+ "BLOQUES": {
+  "A": "Datos del local",
+  "B": "Negocio y canales",
+  "C": "Internet",
+  "D": "Cajas",
+  "E": "Impresoras",
+  "F": "Energía y puertos",
+  "H": "WiFi y cámaras",
+  "I": "Evidencias y cierre"
+ },
+ "DIR_SUG": [
+  "Av. Benavides 1520, Miraflores",
+  "Patio de comidas, El Refugio – Surco",
+  "Real Plaza Salaverry, patio de comidas",
+  "C.C. Arenales, tienda 112"
+ ],
+ "CHIP_PROV": {
+  "ENTEL": "Entel",
+  "CLARO": "Claro",
+  "AMBOS": "Entel o Claro"
+ },
+ "CONN_TXT": {
+  "RED": "un cable de red conectado",
+  "USB": "un cable USB conectado",
+  "WIFI": "que no tiene cable de red ni USB (WiFi)",
+  "NONE": "que no se ven las conexiones"
+ },
+ "REF_MIN": [
+  {
+   "n": "Sicilia",
+   "rub": "RESTAURANTE",
+   "est": "EN_OPERACION",
+   "np": 1,
+   "cj": 1,
+   "con": "",
+   "eq": "",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R02",
+    "R03",
+    "R05",
+    "R06",
+    "R26",
+    "R56"
+   ]
+  },
+  {
+   "n": "Don Oscar",
+   "rub": "REST_PESCADOS",
+   "est": "EN_OPERACION",
+   "np": 0,
+   "cj": 1,
+   "con": "",
+   "eq": "",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R03",
+    "R07",
+    "R09",
+    "R10",
+    "R18",
+    "R27",
+    "R56"
+   ]
+  },
+  {
+   "n": "Barrio Pesquero",
+   "rub": "REST_PESCADOS",
+   "est": "EN_OPERACION",
+   "np": 1,
+   "cj": 1,
+   "con": "",
+   "eq": "SI",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R02",
+    "R05",
+    "R08",
+    "R11",
+    "R12"
+   ]
+  },
+  {
+   "n": "Rock & Burgers",
+   "rub": "FAST_FOOD",
+   "est": "EN_OPERACION",
+   "np": 1,
+   "cj": 1,
+   "con": "FIBRA",
+   "eq": "SI",
+   "usb": true,
+   "cam": false,
+   "r": [
+    "R11",
+    "R16",
+    "R65"
+   ]
+  },
+  {
+   "n": "Dorcher Bier",
+   "rub": "RESTOBAR",
+   "est": "EN_OPERACION",
+   "np": 2,
+   "cj": 3,
+   "con": "",
+   "eq": "",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R03",
+    "R29",
+    "R31",
+    "R32",
+    "R65"
+   ]
+  },
+  {
+   "n": "Dorcher Bier",
+   "rub": "RESTOBAR",
+   "est": "EN_OPERACION",
+   "np": 2,
+   "cj": 3,
+   "con": "",
+   "eq": "",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R29",
+    "R30",
+    "R32",
+    "R65"
+   ]
+  },
+  {
+   "n": "Malala",
+   "rub": "RESTOBAR",
+   "est": "POR_INAUGURAR",
+   "np": 2,
+   "cj": 1,
+   "con": "NO_TIENE",
+   "eq": "",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R26",
+    "R33",
+    "R39",
+    "R48",
+    "R56"
+   ]
+  },
+  {
+   "n": "Hotel La Confianza",
+   "rub": "HOSPEDAJE",
+   "est": "EN_OPERACION",
+   "np": 0,
+   "cj": 1,
+   "con": "",
+   "eq": "SI",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R02",
+    "R11",
+    "R26",
+    "R27",
+    "R33",
+    "R34",
+    "R35",
+    "R36"
+   ]
+  },
+  {
+   "n": "Rikoton",
+   "rub": "POLLERIA",
+   "est": "EN_OPERACION",
+   "np": 2,
+   "cj": 1,
+   "con": "FIBRA",
+   "eq": "",
+   "usb": true,
+   "cam": false,
+   "r": [
+    "R05",
+    "R06",
+    "R16"
+   ]
+  },
+  {
+   "n": "Rikoton",
+   "rub": "POLLERIA",
+   "est": "EN_OPERACION",
+   "np": 2,
+   "cj": 1,
+   "con": "",
+   "eq": "",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R37",
+    "R65"
+   ]
+  },
+  {
+   "n": "Rikoton",
+   "rub": "POLLERIA",
+   "est": "EN_OPERACION",
+   "np": 2,
+   "cj": 1,
+   "con": "",
+   "eq": "",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R39"
+   ]
+  },
+  {
+   "n": "Rikoton",
+   "rub": "POLLERIA",
+   "est": "EN_OPERACION",
+   "np": 2,
+   "cj": 1,
+   "con": "",
+   "eq": "",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R65"
+   ]
+  },
+  {
+   "n": "Rikoton",
+   "rub": "POLLERIA",
+   "est": "EN_OPERACION",
+   "np": 3,
+   "cj": 1,
+   "con": "FIBRA",
+   "eq": "",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R06",
+    "R38",
+    "R65"
+   ]
+  },
+  {
+   "n": "Rikoton",
+   "rub": "POLLERIA",
+   "est": "EN_OPERACION",
+   "np": 2,
+   "cj": 1,
+   "con": "",
+   "eq": "",
+   "usb": true,
+   "cam": false,
+   "r": [
+    "R06",
+    "R16",
+    "R48"
+   ]
+  },
+  {
+   "n": "Rikoton",
+   "rub": "POLLERIA",
+   "est": "EN_OPERACION",
+   "np": 3,
+   "cj": 1,
+   "con": "",
+   "eq": "",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R06"
+   ]
+  },
+  {
+   "n": "Gelato Alore",
+   "rub": "HELADERIA",
+   "est": "EN_OPERACION",
+   "np": 1,
+   "cj": 1,
+   "con": "",
+   "eq": "TABLET",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R17",
+    "R47"
+   ]
+  },
+  {
+   "n": "Gelato Alore",
+   "rub": "HELADERIA",
+   "est": "EN_OPERACION",
+   "np": 1,
+   "cj": 1,
+   "con": "",
+   "eq": "TABLET",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R24",
+    "R47",
+    "R48",
+    "R65"
+   ]
+  },
+  {
+   "n": "Gelato Alore",
+   "rub": "HELADERIA",
+   "est": "EN_OPERACION",
+   "np": 1,
+   "cj": 1,
+   "con": "",
+   "eq": "TABLET",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R47"
+   ]
+  },
+  {
+   "n": "ALF Sandwiches",
+   "rub": "FAST_FOOD",
+   "est": "EN_OPERACION",
+   "np": 1,
+   "cj": 1,
+   "con": "",
+   "eq": "NO",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R02",
+    "R06",
+    "R49",
+    "R51"
+   ]
+  },
+  {
+   "n": "La Carpita del Sabor",
+   "rub": "RESTAURANTE",
+   "est": "EN_OPERACION",
+   "np": 3,
+   "cj": 1,
+   "con": "",
+   "eq": "",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R64"
+   ]
+  },
+  {
+   "n": "Los Juárez",
+   "rub": "RESTOBAR",
+   "est": "POR_INAUGURAR",
+   "np": 2,
+   "cj": 1,
+   "con": "NO_TIENE",
+   "eq": "",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R06"
+   ]
+  },
+  {
+   "n": "Mala Vida",
+   "rub": "DISCOTECA_BAR",
+   "est": "EN_OPERACION",
+   "np": 2,
+   "cj": 1,
+   "con": "",
+   "eq": "SI",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R60"
+   ]
+  },
+  {
+   "n": "Huambra",
+   "rub": "RESTAURANTE",
+   "est": "EN_OPERACION",
+   "np": 2,
+   "cj": 1,
+   "con": "",
+   "eq": "NO",
+   "usb": false,
+   "cam": false,
+   "r": []
+  },
+  {
+   "n": "Saltao",
+   "rub": "FAST_FOOD",
+   "est": "EN_OPERACION",
+   "np": 1,
+   "cj": 1,
+   "con": "CHIP",
+   "eq": "",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R06",
+    "R19",
+    "R56"
+   ]
+  },
+  {
+   "n": "Maki Sam",
+   "rub": "REST_ORIENTAL",
+   "est": "EN_OPERACION",
+   "np": 3,
+   "cj": 1,
+   "con": "FIBRA",
+   "eq": "SI",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R55"
+   ]
+  },
+  {
+   "n": "Maki Sam",
+   "rub": "REST_ORIENTAL",
+   "est": "EN_OPERACION",
+   "np": 0,
+   "cj": 1,
+   "con": "",
+   "eq": "",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R37"
+   ]
+  },
+  {
+   "n": "Gourmety",
+   "rub": "CAFETERIA",
+   "est": "EN_OBRA",
+   "np": 1,
+   "cj": 1,
+   "con": "",
+   "eq": "",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R06"
+   ]
+  },
+  {
+   "n": "Bros",
+   "rub": "FAST_FOOD",
+   "est": "EN_OPERACION",
+   "np": 1,
+   "cj": 1,
+   "con": "",
+   "eq": "SI",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R02",
+    "R49",
+    "R51",
+    "R56",
+    "R65"
+   ]
+  },
+  {
+   "n": "El Chito",
+   "rub": "REST_PESCADOS",
+   "est": "EN_OPERACION",
+   "np": 2,
+   "cj": 1,
+   "con": "FIBRA",
+   "eq": "",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R30",
+    "R58"
+   ]
+  },
+  {
+   "n": "Shimaya Ramen",
+   "rub": "REST_ORIENTAL",
+   "est": "EN_OPERACION",
+   "np": 5,
+   "cj": 1,
+   "con": "FIBRA",
+   "eq": "SI",
+   "usb": false,
+   "cam": true,
+   "r": [
+    "R53",
+    "R64"
+   ]
+  },
+  {
+   "n": "Shimaya Ramen",
+   "rub": "REST_ORIENTAL",
+   "est": "EN_OPERACION",
+   "np": 4,
+   "cj": 1,
+   "con": "COAXIAL",
+   "eq": "SI",
+   "usb": false,
+   "cam": true,
+   "r": [
+    "R16",
+    "R32",
+    "R58"
+   ]
+  },
+  {
+   "n": "Shimaya Ramen",
+   "rub": "REST_ORIENTAL",
+   "est": "EN_OPERACION",
+   "np": 5,
+   "cj": 1,
+   "con": "",
+   "eq": "SI",
+   "usb": false,
+   "cam": true,
+   "r": [
+    "R06",
+    "R37",
+    "R58"
+   ]
+  },
+  {
+   "n": "Modonese",
+   "rub": "REST_PESCADOS",
+   "est": "EN_OPERACION",
+   "np": 0,
+   "cj": 1,
+   "con": "FIBRA",
+   "eq": "TABLET",
+   "usb": false,
+   "cam": true,
+   "r": [
+    "R09",
+    "R26",
+    "R62"
+   ]
+  },
+  {
+   "n": "Omakase",
+   "rub": "REST_ORIENTAL",
+   "est": "EN_OPERACION",
+   "np": 1,
+   "cj": 1,
+   "con": "",
+   "eq": "NO",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R02",
+    "R06",
+    "R60"
+   ]
+  },
+  {
+   "n": "Shimaya Ramen",
+   "rub": "REST_ORIENTAL",
+   "est": "EN_OPERACION",
+   "np": 5,
+   "cj": 1,
+   "con": "COAXIAL",
+   "eq": "SI",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R58"
+   ]
+  },
+  {
+   "n": "Shimaya Ramen",
+   "rub": "REST_ORIENTAL",
+   "est": "EN_OPERACION",
+   "np": 5,
+   "cj": 1,
+   "con": "FIBRA",
+   "eq": "SI",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R37",
+    "R58",
+    "R59"
+   ]
+  },
+  {
+   "n": "Shimaya Ramen",
+   "rub": "REST_ORIENTAL",
+   "est": "EN_OPERACION",
+   "np": 5,
+   "cj": 1,
+   "con": "",
+   "eq": "SI",
+   "usb": false,
+   "cam": true,
+   "r": [
+    "R16",
+    "R53"
+   ]
+  },
+  {
+   "n": "Shimaya Ramen",
+   "rub": "REST_ORIENTAL",
+   "est": "EN_OPERACION",
+   "np": 5,
+   "cj": 1,
+   "con": "FIBRA",
+   "eq": "SI",
+   "usb": false,
+   "cam": true,
+   "r": [
+    "R37",
+    "R58"
+   ]
+  },
+  {
+   "n": "Caleta",
+   "rub": "REST_PESCADOS",
+   "est": "EN_OPERACION",
+   "np": 2,
+   "cj": 2,
+   "con": "",
+   "eq": "SI",
+   "usb": false,
+   "cam": false,
+   "r": []
+  },
+  {
+   "n": "Don Chalán",
+   "rub": "REST_PESCADOS",
+   "est": "EN_OPERACION",
+   "np": 2,
+   "cj": 1,
+   "con": "FIBRA",
+   "eq": "",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R02",
+    "R06",
+    "R56"
+   ]
+  },
+  {
+   "n": "Soma",
+   "rub": "DISCOTECA_BAR",
+   "est": "EN_OPERACION",
+   "np": 0,
+   "cj": 1,
+   "con": "NO_TIENE",
+   "eq": "",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R49",
+    "R56"
+   ]
+  },
+  {
+   "n": "Belgofre",
+   "rub": "FAST_FOOD",
+   "est": "EN_OPERACION",
+   "np": 0,
+   "cj": 1,
+   "con": "",
+   "eq": "",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R37",
+    "R61"
+   ]
+  },
+  {
+   "n": "Flora y Fauna",
+   "rub": "RETAIL",
+   "est": "SISTEMA_ANTERIOR",
+   "np": 0,
+   "cj": 2,
+   "con": "",
+   "eq": "SI",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R24",
+    "R55",
+    "R63"
+   ]
+  },
+  {
+   "n": "Verbena",
+   "rub": "RESTAURANTE",
+   "est": "EN_OPERACION",
+   "np": 2,
+   "cj": 1,
+   "con": "",
+   "eq": "TABLET",
+   "usb": false,
+   "cam": false,
+   "r": [
+    "R02",
+    "R06"
+   ]
+  }
+ ],
+ "REF_RULE": {
+  "R02": [
+   "Raspberry para el controlador de impresiones",
+   "Recomendar un kit Raspberry para instalar el controlador (sistema de impresiones). Solo trabaja con impresoras de red: no sirve si la impresora de caja es USB. El kit se cotiza con el equipo de Desarrollo de Negocios."
+  ],
+  "R03": [
+   "Toma independiente para equipos de red",
+   "Habilitar una toma independiente para los equipos de red y un supresor de picos exclusivo para ellos."
+  ],
+  "R05": [
+   "Switch para ampliar un punto de red",
+   "Instalar un switch de 4 a 8 puertos en el área para repartir la conexión (impresora, repetidor, caja)."
+  ],
+  "R06": [
+   "Punto de red cerca de la impresora",
+   "Instalar un punto de red cerca de la impresora antes de la siguiente visita."
+  ],
+  "R07": [
+   "Gabinete de pared",
+   "Adquirir un gabinete de pared de 4 RU, instalarlo a 1.65 m del piso y usar un supresor que solo alimente los equipos del gabinete."
+  ],
+  "R08": [
+   "Separar cables eléctricos en el gabinete",
+   "Ordenar el gabinete y mantener los cables eléctricos aislados de los de red."
+  ],
+  "R09": [
+   "Cable Cat6 rotulado",
+   "Cambiar los cables por Cat6 armados a medida y rotulados."
+  ],
+  "R10": [
+   "Proteger equipos de grasa y calor",
+   "Hacer cambios para evitar la acumulación de grasa en los equipos (reubicar o proteger)."
+  ],
+  "R11": [
+   "PC de caja por cable",
+   "Conectar la PC de caja al router o switch por cable Ethernet y reservar su IP en el DHCP."
+  ],
+  "R12": [
+   "Impresoras conectadas directo a la red principal",
+   "Conectar las impresoras por cable al router o a un switch de la red principal, no a través de repetidores."
+  ],
+  "R16": [
+   "Impresora USB conectada al equipo con controlador",
+   "Conectar la impresora USB a la laptop o PC que tiene el controlador de impresiones; así imprime comandas, pre-cuentas y comprobantes. Una impresora USB no funciona con Raspberry. Pasarla a red solo si debe imprimir sin depender de la PC."
+  ],
+  "R17": [
+   "Plan de internet bajo",
+   "Evaluar un plan de mayor ancho de banda."
+  ],
+  "R18": [
+   "Switch administrable",
+   "Centralizar las conexiones cableadas en un switch administrable."
+  ],
+  "R19": [
+   "Cobertura WiFi en todo el local (repetidor o access point)",
+   "Colocar un repetidor o un access point para cubrir las zonas sin señal. Todo el local (salones, terraza, barra) debe tener WiFi para que los meseros comanden."
+  ],
+  "R24": [
+   "IP fija para impresoras de red",
+   "Fijar la IP de la impresora dentro del segmento del router (desactivar DHCP)."
+  ],
+  "R26": [
+   "Segunda visita técnica",
+   "Agendar una segunda visita técnica (motivo en P50a)."
+  ],
+  "R27": [
+   "Mantenimiento de equipos y tomas",
+   "Dar mantenimiento a los equipos de red (router, módem, Raspberry) y limpiar las tomas de energía."
+  ],
+  "R29": [
+   "Una sola red para POS e impresoras",
+   "Conectar todas las PC de caja e impresoras a una misma red y dejar la otra solo como respaldo o para clientes."
+  ],
+  "R30": [
+   "Rotular cables y no moverlos sin avisar",
+   "Rotular los cables de red de cada equipo y no hacer cambios en el cableado sin informar antes a ID."
+  ],
+  "R31": [
+   "Reemplazar switch defectuoso",
+   "Reemplazar el switch defectuoso y medir la velocidad en cada PC después del cambio."
+  ],
+  "R32": [
+   "Red WiFi definida para tablets",
+   "Definir la red WiFi que usará cada tablet, probar su conexión una por una y separarla de la red de clientes cuando sea posible."
+  ],
+  "R33": [
+   "Cambiar a un proveedor más estable",
+   "Evaluar internet por fibra (o Starlink donde no llega la fibra) y monitorear el consumo del plan mientras tanto."
+  ],
+  "R34": [
+   "Ubicar el Raspberry en un lugar protegido",
+   "Mover el Raspberry a un punto protegido e inaccesible para el personal, con toma y punto de red propios."
+  ],
+  "R35": [
+   "Zona horaria correcta en las PC",
+   "Configurar la zona horaria de Perú (UTC-5) en todas las PC que usan el sistema."
+  ],
+  "R36": [
+   "Dejar cargar el sistema antes de operar",
+   "Esperar a que IDPos cargue por completo antes de operar, sobre todo después de actualizaciones."
+  ],
+  "R37": [
+   "Cambiar conectores de red desgastados",
+   "Cambiar los conectores RJ45 desgastados de las impresoras y probar la conexión."
+  ],
+  "R38": [
+   "Impresora para área que prepara sin comandas",
+   "Instalar una impresora ticketera de red en el área, con su punto de red, para comandas y pre-cuentas."
+  ],
+  "R39": [
+   "Equipo de pedidos adicional por piso",
+   "Contar con una tablet o monitor de pedidos adicional en el otro piso para agilizar el ingreso de órdenes."
+  ],
+  "R47": [
+   "Tablet en caja: Raspberry obligatorio",
+   "Es obligatorio adquirir un kit Raspberry para el controlador de impresiones; las impresoras deben ser de red. El kit se cotiza con el equipo de Desarrollo de Negocios."
+  ],
+  "R48": [
+   "Switch por falta de puertos en el router",
+   "Implementar un switch y los puntos de red que faltan: un extremo de cada cable en el router/switch (la central) y el otro junto a cada equipo (impresora, PC, Raspberry). Indicar al cliente cuántos puntos de red debe implementar y el tamaño del switch (5, 8, 16 o 24 puertos)."
+  ],
+  "R49": [
+   "Punto de energía junto a cada equipo de red",
+   "Habilitar un punto de energía junto a cada equipo de red (switch, Raspberry, impresora de red, access point, repetidor). Si no es posible, indicar que necesitará un punto de energía adicional o una extensión."
+  ],
+  "R51": [
+   "Impresoras de áreas de preparación: siempre de red",
+   "Las impresoras de áreas de preparación (cocina, bar, jugos, brasas…) deben ser de red, conectadas por cable. Si es USB o Bluetooth, cambiarla por una impresora de red; si es WiFi, conectarla por cable."
+  ],
+  "R53": [
+   "Cámaras: plan de 1 Gbps y red separada",
+   "Contratar un plan de 1 Gbps (1000 Mbps) y separar la red de cámaras de la red de PC, sistema de impresiones e impresoras de red (VLAN o router aparte), para que las cámaras no consuman la velocidad del sistema."
+  ],
+  "R55": [
+   "Impresoras en el segmento del router",
+   "Cambiar la IP de la impresora a una del segmento del router (ej. router 192.168.1.1 → impresora 192.168.1.50), con DHCP desactivado, y volver a subir el autotest."
+  ],
+  "R56": [
+   "Red independiente con TP-Link y chip",
+   "Independizar la red con un TP-Link con chip y plan básico, solo para las impresoras y el equipo donde va el sistema de impresiones. Reemplaza al internet del local para la impresión (no es un respaldo); el chip (Entel o Claro) sale de la prueba de señal."
+  ],
+  "R58": [
+   "Switch de 1000 Mbps",
+   "Cambiar el switch por uno de 10/100/1000 Mbps (gigabit) con los puertos necesarios."
+  ],
+  "R59": [
+   "Ponchar los cables con la norma B",
+   "Ponchar de nuevo el cable con la norma T568B en ambos extremos (router → switch → impresora) y probar la conexión."
+  ],
+  "R60": [
+   "PC o laptop temporal: Raspberry",
+   "Tomarlo como si no hubiera PC: recomendar el kit Raspberry para el sistema de impresiones (o una PC fija del local)."
+  ],
+  "R61": [
+   "Probar los puertos del router",
+   "Probar cada puerto del router, anotar en qué puerto queda cada impresora y no cambiarla de puerto."
+  ],
+  "R62": [
+   "Cables de cámaras lejos de la corriente",
+   "Canaletear el cable de red lejos de los cables de corriente y de los equipos con motor (por tubo desde el techo o por el piso)."
+  ],
+  "R63": [
+   "Periféricos de caja y pruebas de funcionamiento",
+   "Probar en cada caja la impresión, la gaveta, el escáner, la balanza, la impresora de etiquetas y el POS de pago antes del inicio; definir qué balanza queda operativa."
+  ],
+  "R64": [
+   "Reestructurar el cableado de red",
+   "Reestructurar el cableado de red con canaletas y rotulado. No impide el inicio."
+  ],
+  "R65": [
+   "Velocidad limitada a 100 Mbps",
+   "Repetir la prueba directo al router principal, con cable Cat6 y en un puerto RJ45 gigabit (10/100/1000) en el router y en la PC o laptop; si se confirma, cambiar el switch o el cable."
+  ]
+ },
+ "REF_MAP": {
+  "R56": [
+   "R56"
+  ],
+  "A_IMP_RASPBERRY": [
+   "R02"
+  ],
+  "R16": [
+   "R16"
+  ],
+  "TABLET": [
+   "R47"
+  ],
+  "R60": [
+   "R60",
+   "R02"
+  ],
+  "R57": [
+   "R57"
+  ],
+  "A_IMP_PC_CONTROLADOR": [
+   "R43"
+  ],
+  "A_IMP_PC_BASICA": [
+   "R41"
+  ],
+  "A_SUNMI": [
+   "R44"
+  ],
+  "R51": [
+   "R51"
+  ],
+  "USB": [
+   "R16"
+  ],
+  "IMP-AV": [
+   "R27"
+  ],
+  "IMP-MT": [
+   "R27"
+  ],
+  "R55 · V04": [
+   "R55"
+  ],
+  "SWITCH": [
+   "R48"
+  ],
+  "ENERGIA": [
+   "R49"
+  ],
+  "SUPRESOR": [
+   "R03"
+  ],
+  "R_ELEC": [
+   "R62"
+  ],
+  "R10": [
+   "R10"
+  ],
+  "R63": [
+   "R63"
+  ],
+  "R19": [
+   "R19"
+  ],
+  "R53": [
+   "R53"
+  ],
+  "CAM_NVR": [
+   "R53"
+  ],
+  "CAM_DVR": [
+   "R53"
+  ],
+  "R54": [
+   "R54"
+  ],
+  "R67 · V01": [
+   "R67"
+  ],
+  "R65": [
+   "R65"
+  ],
+  "R66 · V02": [
+   "R66"
+  ],
+  "V03 · R11": [
+   "R11"
+  ],
+  "SAT": [
+   "R46"
+  ],
+  "OBRA": [
+   "R26"
+  ],
+  "OBRA_PUNTOS": [
+   "R26"
+  ],
+  "CONTRATAR": [
+   "R26"
+  ],
+  "RASP_PTO": [
+   "R49"
+  ],
+  "CHIP_PEND": [
+   "R45"
+  ]
+ },
+ "REF_SUGERIBLE": [
+  "R03",
+  "R05",
+  "R06",
+  "R09",
+  "R10",
+  "R19",
+  "R27",
+  "R30",
+  "R37",
+  "R48",
+  "R49",
+  "R57",
+  "R59",
+  "R62",
+  "R64",
+  "R65",
+  "R01",
+  "R33",
+  "R32",
+  "R50",
+  "R58",
+  "R61",
+  "R31",
+  "R04",
+  "R22",
+  "R25",
+  "R07",
+  "R08"
+ ],
+ "REF_FAM": {
+  "REST_PESCADOS": "R",
+  "REST_ORIENTAL": "R",
+  "RESTAURANTE": "R",
+  "CHIFA": "R",
+  "PIZZERIA": "R",
+  "PARRILLA": "R",
+  "POLLERIA": "R",
+  "FAST_FOOD": "R",
+  "RESTOBAR": "B",
+  "DISCOTECA_BAR": "B",
+  "CAFETERIA": "C",
+  "HELADERIA": "C",
+  "HOSPEDAJE": "H",
+  "RETAIL": "T",
+  "OTRO": "O"
+ },
+ "REF_W": {
+  "rub": 30,
+  "np": 15,
+  "con": 15,
+  "cj": 10,
+  "eq": 10,
+  "usb": 10,
+  "cam": 5,
+  "est": 5
+ },
+ "READ_FIELDS": {
+  "speed": [
+   [
+    "d1",
+    "Prueba 1 · descarga (Mbps)"
+   ],
+   [
+    "d2",
+    "Prueba 2 · descarga (Mbps)"
+   ],
+   [
+    "u",
+    "Subida (Mbps)"
+   ],
+   [
+    "p",
+    "Ping en reposo (ms)"
+   ],
+   [
+    "pd",
+    "Ping durante la descarga (ms)"
+   ],
+   [
+    "pu",
+    "Ping durante la subida (ms)"
+   ]
+  ],
+  "chip": [
+   [
+    "d",
+    "Descarga (Mbps)"
+   ],
+   [
+    "u",
+    "Subida (Mbps)"
+   ],
+   [
+    "p",
+    "Ping (ms)"
+   ]
+  ],
+  "label": [
+   [
+    "marca",
+    "Marca",
+    "text"
+   ],
+   [
+    "modelo",
+    "Modelo",
+    "text"
+   ],
+   [
+    "sn",
+    "Número de serie (SN)",
+    "text"
+   ]
+  ],
+  "selftest": [
+   [
+    "marca",
+    "Marca",
+    "text"
+   ],
+   [
+    "modelo",
+    "Modelo",
+    "text"
+   ],
+   [
+    "ip",
+    "IP",
+    "text"
+   ],
+   [
+    "mac",
+    "MAC",
+    "text"
+   ],
+   [
+    "gw",
+    "Puerta de enlace",
+    "text"
+   ]
+  ],
+  "selftestUsb": [
+   [
+    "marca",
+    "Marca",
+    "text"
+   ],
+   [
+    "modelo",
+    "Modelo",
+    "text"
+   ]
+  ],
+  "ports": [
+   [
+    "libres",
+    "Puertos LAN libres",
+    "sel",
+    [
+     [
+      "0",
+      "0"
+     ],
+     [
+      "1",
+      "1"
+     ],
+     [
+      "2",
+      "2"
+     ],
+     [
+      "3",
+      "3"
+     ],
+     [
+      "4",
+      "4"
+     ],
+     [
+      "",
+      "No se leen"
+     ]
+    ]
+   ]
+  ],
+  "ipconfig": [
+   [
+    "ip",
+    "IP del equipo",
+    "text"
+   ],
+   [
+    "mascara",
+    "Máscara",
+    "text"
+   ],
+   [
+    "gw",
+    "Puerta de enlace",
+    "text"
+   ]
+  ],
+  "scanner": [
+   [
+    "equipos",
+    "Equipos encontrados"
+   ],
+   [
+    "impresoras",
+    "IP de impresoras",
+    "text"
+   ],
+   [
+    "otros",
+    "Otros equipos",
+    "text"
+   ],
+   [
+    "cam",
+    "Cámaras en el escáner",
+    "sel",
+    [
+     [
+      "",
+      "No aparecen"
+     ],
+     [
+      "DVR",
+      "DVR: una sola IP (ej. Hikvision)"
+     ],
+     [
+      "NVR",
+      "NVR: varias IP de cámaras"
+     ]
+    ]
+   ],
+   [
+    "camIps",
+    "Cantidad de IP de cámaras"
+   ]
+  ],
+  "anydesk": [
+   [
+    "codigo",
+    "Código de AnyDesk",
+    "text"
+   ],
+   [
+    "equipo",
+    "Equipo desde donde se accede",
+    "text"
+   ]
+  ],
+  "conn": [
+   [
+    "ver",
+    "Conexión que se ve",
+    "sel",
+    [
+     [
+      "RED",
+      "Cable de red"
+     ],
+     [
+      "USB",
+      "Cable USB"
+     ],
+     [
+      "WIFI",
+      "Sin cable (WiFi)"
+     ],
+     [
+      "NONE",
+      "No se ve"
+     ]
+    ]
+   ]
+  ]
+ },
+ "VID_TIPOS": [
+  "Recorrido del local",
+  "Equipos de red (router, switch, gabinete…)",
+  "Sistema de impresiones",
+  "Caja y periféricos",
+  "Otro"
+ ],
+ "RC_FIELDS": [
+  [
+   "ip",
+   "IP del router (puerta de enlace)",
+   "text"
+  ],
+  [
+   "proveedor",
+   "Proveedor",
+   "text"
+  ],
+  [
+   "marca",
+   "Marca",
+   "text"
+  ],
+  [
+   "modelo",
+   "Modelo",
+   "text"
+  ],
+  [
+   "sn",
+   "Número de serie (SN)",
+   "text"
+  ],
+  [
+   "puertos",
+   "Puertos LAN en total",
+   "number"
+  ],
+  [
+   "libres",
+   "Puertos libres",
+   "number"
+  ],
+  [
+   "ocupados",
+   "Puertos ocupados",
+   "number"
+  ]
+ ],
+ "ERR": {
+  "il": "La evidencia no es legible. Vuelve a tomar la foto o salta la evidencia.",
+  "nc": "La foto no corresponde a lo solicitado (parece una silla). Vuelve a subir la foto o salta la evidencia.",
+  "wrong": "Indicaste que la lectura no es correcta. Vuelve a tomar o subir la foto, o continúa sin esta lectura (queda pendiente en la minuta)."
+ },
+ "EV_LIKE": {
+  "speed": "una captura de otra app",
+  "chip": "una captura de otra app",
+  "ipconfig": "la captura del escáner de IP",
+  "scanner": "el ipconfig (una sola IP)",
+  "photo": "la foto de la caja sin router",
+  "anydesk": "la información del sistema de Windows",
+  "label": "la etiqueta del router",
+  "conn": "los puertos del router",
+  "selftest": "la impresora sin el ticket",
+  "selftestUsb": "la impresora sin el ticket"
+ },
+ "EV_LIKE_N": {
+  "el speedtest": "una captura de otra app",
+  "los puertos del router": "el frente del router (solo luces)",
+  "la etiqueta del router": "la etiqueta de una impresora"
+ }
+}
