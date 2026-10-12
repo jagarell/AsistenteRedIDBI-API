@@ -31,6 +31,8 @@ class ChatStartRequest(BaseModel):
     # Prefills de P06 (fecha) y P07 (técnico): los pone el gateway.
     technicianName: Optional[str] = None
     today: Optional[str] = None
+    # Solo para pruebas del flujo anterior (76 nodos): el chat vigente es el del simulador.
+    legacy: bool = False
 
 
 class ChatAnswerRequest(BaseModel):

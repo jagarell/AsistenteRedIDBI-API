@@ -75,7 +75,7 @@ def test_rock_burgers_sample(monkeypatch):
     }
     floors = iter(["2", "1", "2", "3"])
     seen = []
-    r = client.post("/chat/start", json={"evaluationId": "1"}).json()
+    r = client.post("/chat/start", json={"evaluationId": "1", "legacy": True}).json()
     for _ in range(300):
         if r["completed"]:
             break

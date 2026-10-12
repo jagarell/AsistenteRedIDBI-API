@@ -42,7 +42,7 @@ def test_command_endpoint():
     assert any(n["label"] == "Red de invitados" for n in r["map"]["nodes"])
     r = client.post("/chat/map/command", json={"map": r["map"], "command": "PC de caja por cable"}).json()
     link = next(l for l in r["map"]["links"] if l["target"] == "pc")
-    assert link["style"] == "solid" and not link["observed"]
+    assert link["style"] == "cable" and not link["observed"]
     r = client.post("/chat/map/command", json={"map": r["map"], "command": "no sé qué hacer"}).json()
     assert "No entendí" in r["reply"]
 
@@ -54,5 +54,5 @@ def test_cable_command_targets_the_pc_not_the_printer():
     doc.links.append(MapLink(id="l4", source="pc", target="pr", style="dotted"))
     doc, reply = apply_command(doc, "PC de caja por cable")
     assert "PC Caja" in reply
-    assert next(l for l in doc.links if l.target == "pc").style == "solid"
-    assert next(l for l in doc.links if l.target == "pr").style == "dotted"
+    assert next(l for l in doc.links if l.target == "pc").style == "cable"
+    assert next(l for l in doc.links if l.target == "pr").style == "usb"

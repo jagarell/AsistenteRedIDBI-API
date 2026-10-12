@@ -5,7 +5,10 @@ from app.chat.flow_engine import FLOW
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+import json
+
 from app.analysis import AnalysisResult, compute_analysis
+from app.chat.sim.engine import is_v2
 from app.chat.checklist import EvidenceChecklistSeed, build_evidence_checklist
 from app.chat.router import router as chat_router
 from app.vision import PhotoAnalyzeRequest, PhotoAnalyzeResult, analyze_photo
@@ -46,8 +49,17 @@ def health():
     return {"status": "OK", "message": "IA service ready"}
 
 
-@app.post("/analyze", response_model=AnalysisResult)
+@app.post("/analyze")
 def analyze(request: AnalyzeRequest):
+    raw = request.answers.get("__state")
+    if raw:
+        try:
+            state = json.loads(raw)
+        except ValueError:
+            state = None
+        if is_v2(state):
+            from app.chat.sim.analysis import analyze_state
+            return analyze_state(state, request.restaurantName)
     return compute_analysis(
         request.answers,
         request.restaurantName,

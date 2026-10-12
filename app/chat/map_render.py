@@ -97,9 +97,9 @@ def render_map_png(doc: MapDocument, images: Optional[Dict[str, bytes]] = None) 
             continue
         a, b = pos[l.source], pos[l.target]
         color = _RED if l.observed else _LINK_GRAY
-        if l.observed or l.style == "dashed":
+        if l.observed or l.style in ("dashed", "wifi"):
             _dashed(d, a, b, color, 3, 12, 8)
-        elif l.style == "dotted":
+        elif l.style in ("dotted", "usb"):
             _dashed(d, a, b, color, 3, 3, 8)
         else:
             d.line([a, b], fill=color, width=3)

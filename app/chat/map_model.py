@@ -30,14 +30,34 @@ class MapNode(BaseModel):
     pending: bool = False
     detail: Optional[str] = None
     color: Optional[str] = None
+    # Mapa nuevo (2026-10-11): ubicación, IP, puertos del switch, estado y rayo de energía.
+    location: Optional[str] = None
+    ip: Optional[str] = None
+    ports: Optional[int] = None
+    status: Optional[str] = None      # ok | pending (por implementar) | broken (con falla)
+    power: Optional[str] = None       # ok (hay toma) | missing (falta toma)
+    usb: bool = False
+    ipBad: bool = False
+    tier: Optional[int] = None
+
+
+_LEGACY_STYLE = {"solid": "cable", "dashed": "wifi", "dotted": "usb"}
 
 
 class MapLink(BaseModel):
     id: str
     source: str
     target: str
-    style: str = "solid"          # solid (cable) | dashed (WiFi) | dotted (USB)
-    observed: bool = False        # se dibuja en rojo ("debería ir por cable")
+    # main (gruesa) | cable (fina) | camera (trazos cortos) | wifi (trazos medianos) | usb (flecha).
+    # Los mapas guardados con solid / dashed / dotted se leen como cable / wifi / usb.
+    style: str = "cable"
+    observed: bool = False        # se dibuja en rojo ("con falla / observado")
+    color: Optional[str] = None
+
+    def __init__(self, **data):
+        if data.get("style") in _LEGACY_STYLE:
+            data["style"] = _LEGACY_STYLE[data["style"]]
+        super().__init__(**data)
 
 
 class MapText(BaseModel):
@@ -64,12 +84,14 @@ class MapDocument(BaseModel):
     links: List[MapLink] = Field(default_factory=list)
     texts: List[MapText] = Field(default_factory=list)
     images: List[MapImage] = Field(default_factory=list)
+    # Alto (en unidades del lienzo de 370 de ancho) con el que se calcularon las posiciones 0..1.
+    canvasH: Optional[int] = None
 
 
 _STYLE = {
-    ConnectionType.CABLE_RED: "solid",
-    ConnectionType.WIFI: "dashed",
-    ConnectionType.USB_BLUETOOTH: "dotted",
+    ConnectionType.CABLE_RED: "cable",
+    ConnectionType.WIFI: "wifi",
+    ConnectionType.USB_BLUETOOTH: "usb",
 }
 
 
@@ -199,9 +221,9 @@ def apply_command(doc: MapDocument, command: str) -> Tuple[MapDocument, str]:
         if target is not None:
             for l in doc.links:
                 if {l.source, l.target} == {router.id, target.id}:
-                    l.style, l.observed = "solid", False
+                    l.style, l.observed = "cable", False
                     return doc, f"Listo: {target.label} ahora va por cable al router."
-            doc.links.append(MapLink(id=_id("l"), source=router.id, target=target.id))
+            doc.links.append(MapLink(id=_id("l"), source=router.id, target=target.id, style="cable"))
             return doc, f"Listo: conecté {target.label} al router por cable."
 
     if any(w in low for w in ("elimina", "quita", "borra")):
@@ -215,7 +237,7 @@ def apply_command(doc: MapDocument, command: str) -> Tuple[MapDocument, str]:
         x, y = _free_spot(doc, router)
         node = MapNode(id=_id("n"), label="Red de invitados", type="access_point", x=x, y=y)
         doc.nodes.append(node)
-        doc.links.append(MapLink(id=_id("l"), source=router.id, target=node.id, style="dashed"))
+        doc.links.append(MapLink(id=_id("l"), source=router.id, target=node.id, style="wifi"))
         return doc, "Listo: agregué una red de invitados separada, conectada por WiFi al router."
 
     if any(w in low for w in ("agrega", "agregar", "añade", "añadir", "pon ", "suma")):
@@ -227,7 +249,7 @@ def apply_command(doc: MapDocument, command: str) -> Tuple[MapDocument, str]:
                 x, y = _free_spot(doc, anchor)
                 node = MapNode(id=_id("n"), label=label, type=ntype, x=x, y=y)
                 doc.nodes.append(node)
-                style = "solid" if ntype in ("switch", "printer", "pos") and "tablet" not in low else "dashed"
+                style = "cable" if ntype in ("switch", "printer", "pos") and "tablet" not in low else "wifi"
                 doc.links.append(MapLink(id=_id("l"), source=anchor.id, target=node.id, style=style))
                 return doc, f"Listo: agregué {label} al mapa."
 

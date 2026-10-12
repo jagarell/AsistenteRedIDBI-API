@@ -3,7 +3,7 @@ gateway los consume tal cual), más la metadata de preguntas y el documento
 de la minuta."""
 import base64
 import json
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -13,7 +13,9 @@ from app.chat.map_model import MapDocument, apply_command, from_topology
 from app.chat.minuta_doc import MinutaDocument, build_minuta_document
 from app.chat.topology import build_state_topology
 from app.chat.schemas import ChatAmendRequest, ChatAnswerRequest, ChatEditRequest, ChatResponse, ChatStartRequest
-from app.chat.sim.engine import is_v2
+from app.chat.sim.engine import Session, is_v2
+from app.chat.sim.map import build_map, map_height, to_document
+from app.chat.sim.minuta import build_document
 from app.chat.sim.service import SimChat
 
 router = APIRouter(prefix="/chat", tags=["Technical Chat"])
@@ -31,7 +33,7 @@ def _is_new(state: str) -> bool:
 
 @router.post("/start", response_model=ChatResponse)
 def start_chat(request: ChatStartRequest) -> ChatResponse:
-    return _sim.start(request)
+    return _engine.start(request) if request.legacy else _sim.start(request)
 
 
 @router.post("/answer", response_model=ChatResponse)
@@ -56,12 +58,20 @@ class MinutaDocumentRequest(BaseModel):
     # fotos de evidencia que lleva, por id de imagen del mapa (base64).
     map: Optional[MapDocument] = None
     mapImages: Dict[str, str] = {}
+    # Ediciones de la minuta (datos principales, observaciones, propuesta) y datos del momento (quién validó, fecha).
+    edits: Optional[Dict[str, Any]] = None
+    meta: Optional[Dict[str, Any]] = None
 
 
-@router.post("/minuta-document", response_model=MinutaDocument)
-def minuta_document(request: MinutaDocumentRequest) -> MinutaDocument:
+@router.post("/minuta-document")
+def minuta_document(request: MinutaDocumentRequest):
     images = {k: base64.b64decode(v) for k, v in request.mapImages.items()}
-    return build_minuta_document(json.loads(request.state), request.map, images)
+    state = json.loads(request.state)
+    if is_v2(state):
+        s = Session(state)
+        return build_document(s.A, state["ctx"], request.edits, request.meta,
+                              request.map.model_dump() if request.map else None, images)
+    return build_minuta_document(state, request.map, images)
 
 
 class MapGenerateRequest(BaseModel):
@@ -71,7 +81,14 @@ class MapGenerateRequest(BaseModel):
 @router.post("/map/generate", response_model=MapDocument)
 def map_generate(request: MapGenerateRequest) -> MapDocument:
     """"Generar mapa con IA": mapa automático a partir de lo levantado en el chat."""
-    return from_topology(build_state_topology(json.loads(request.state)))
+    state = json.loads(request.state)
+    if is_v2(state):
+        s = Session(state)
+        m = build_map(s.X)
+        doc = to_document(m)
+        doc["canvasH"] = map_height(m)
+        return MapDocument(**doc)
+    return from_topology(build_state_topology(state))
 
 
 class MapCommandRequest(BaseModel):

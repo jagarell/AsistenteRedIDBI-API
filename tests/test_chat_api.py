@@ -49,7 +49,7 @@ def test_full_walk(monkeypatch):
     monkeypatch.setattr(engine_module, "analyze_evidence", fake_analyze)
     monkeypatch.setattr(engine_module, "geocode", lambda *_: "-11.49,-77.2")
 
-    r = client.post("/chat/start", json={"evaluationId": "1", "technicianName": "Yomira Mora",
+    r = client.post("/chat/start", json={"evaluationId": "1", "legacy": True, "technicianName": "Yomira Mora",
                                            "today": "31/05/2026"}).json()
     assert r["currentQuestionKey"] == "P01" and r["node"]["blockLabel"] == "Datos de la visita"
     seen_cross, p27_options = [], None
@@ -83,7 +83,7 @@ def test_full_walk(monkeypatch):
 
 
 def test_validation_error_does_not_advance():
-    r = client.post("/chat/start", json={"evaluationId": "1"}).json()
+    r = client.post("/chat/start", json={"evaluationId": "1", "legacy": True}).json()
     bad = client.post("/chat/answer", json={"evaluationId": "1", "state": r["state"], "answer": ""}).json()
     assert bad["validationError"] and bad["currentQuestionKey"] == "P01"
     assert bad["state"] == r["state"]
@@ -93,7 +93,7 @@ def test_minuta_document(monkeypatch, tmp_path):
     import base64
     monkeypatch.setattr(engine_module, "analyze_evidence", fake_analyze)
     monkeypatch.setattr(engine_module, "geocode", lambda *_: "-11.49,-77.2")
-    r = client.post("/chat/start", json={"evaluationId": "1"}).json()
+    r = client.post("/chat/start", json={"evaluationId": "1", "legacy": True}).json()
     for _ in range(200):
         if r["completed"]:
             break
@@ -120,7 +120,7 @@ def test_minuta_document(monkeypatch, tmp_path):
 def test_followups_and_amend(monkeypatch):
     monkeypatch.setattr(engine_module, "analyze_evidence", fake_analyze)
     monkeypatch.setattr(engine_module, "geocode", lambda *_: "-11.49,-77.2")
-    r = client.post("/chat/start", json={"evaluationId": "1"}).json()
+    r = client.post("/chat/start", json={"evaluationId": "1", "legacy": True}).json()
     e1 = None
     for _ in range(100):
         node = r["node"]
