@@ -40,7 +40,7 @@ for(let s=1;s<=SEEDS;s++){
   }
   const A=JSON.parse(JSON.stringify(S.A()));
   const {N,X,R,cur}=ctx.ctx(); const sc=ctx.scores(X,R);
-  out.push(safe({seed:s,A,fin:!!cur&&cur.kind==='fin',stuck:cur&&cur.id,N:N.map(n=>({id:n.id,kind:n.kind,text:n.text,opts:n.opts,def:n.def,items:n.items,zones:n.zones,sel:n.sel,none:n.none})),X,R,scores:sc,pasos:ctx.genPasos(X,R),refs:ctx.refData(X,R),resumen:ctx.resumenIA(X,R)}));
+  out.push(safe({seed:s,A,fin:!!cur&&cur.kind==='fin',stuck:cur&&cur.id,N:N.map(n=>({id:n.id,kind:n.kind,text:n.text,opts:n.opts,def:n.def,items:n.items,zones:n.zones,sel:n.sel,none:n.none})),X,R,scores:sc,pasos:ctx.genPasos(X,R),refs:ctx.refData(X,R),resumen:ctx.resumenIA(X,R),map:ctx.buildMap(X)}));
 }
 fs.writeFileSync('random.json',JSON.stringify(out));
 console.log('escenarios',out.length,'completos',out.filter(o=>o.fin).length);

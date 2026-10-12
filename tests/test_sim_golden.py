@@ -74,3 +74,21 @@ def test_port_igual_al_simulador(case):
     _assert_same("refs", _plain({"top": [{"n": t["n"], "pct": t["pct"]} for t in refs["top"]], "recs": refs["recs"], "sug": refs["sug"]}),
                  case["refs"])
     assert resumen_ia(X, R) == case["resumen"]
+
+
+@pytest.mark.parametrize("case", GOLDEN, ids=[c["name"] for c in GOLDEN])
+def test_mapa_igual_al_simulador(case):
+    from app.chat.sim.map import build_map
+
+    a = case["A"]
+    N, X = build(a, {"technician": "Técnico de prueba"})
+    m = build_map(X)
+    keys = ("type", "label", "sub", "ubic", "ip", "tier", "status", "power", "usb", "ipBad", "x", "y")
+    def nz(o):  # el simulador deja sin definir (undefined) lo que acá es False
+        return {k: (None if v is False else v) for k, v in o.items()}
+
+    py_nodes = _plain([nz({k: n.get(k) for k in keys} | {"id": n["id"]}) for n in m["nodes"]])
+    js_nodes = [nz({k: n.get(k) for k in keys + ("id",)}) for n in case["map"]["nodes"]]
+    _assert_same("nodes", py_nodes, js_nodes)
+    py_links = _plain([{"id": l["id"], "s": l["s"], "t": l["t"], "style": l["style"], "bad": bool(l["bad"])} for l in m["links"]])
+    _assert_same("links", py_links, [{"id": l["id"], "s": l["s"], "t": l["t"], "style": l["style"], "bad": bool(l.get("bad"))} for l in case["map"]["links"]])
