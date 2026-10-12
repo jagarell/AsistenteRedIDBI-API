@@ -19,6 +19,10 @@ class InputType(str, Enum):
     EVIDENCE = "EVIDENCE"          # 1 a 3 fotos leídas por IA
     ALERT = "ALERT"                # aviso con botón "Entendido"
     SUMMARY = "SUMMARY"            # resumen final con Generar minuta / mapa
+    READ_CARD = "READ_CARD"        # cuadro de datos que se valida (router): Correcto / Corregir
+    LINKS = "LINKS"                # enlaces de video (Anexo B), varios
+    STEPS = "STEPS"                # pasos a seguir editables
+    WIFI_MEASURE = "WIFI_MEASURE"  # medición de WiFi por zona
 
 
 # --- Peticiones ---
@@ -38,6 +42,8 @@ class ChatAnswerRequest(BaseModel):
     answer: str = ""
     # Solo en nodos EVIDENCE: 1..3 fotos en base64.
     photosBase64: List[str] = Field(default_factory=list)
+    # Cómo se consiguió la foto: "tomar" (cámara) o "subir" (galería).
+    mode: Optional[str] = None
 
 
 class ChatAmendRequest(BaseModel):
@@ -51,6 +57,19 @@ class ChatAmendRequest(BaseModel):
     fields: Dict[str, Any] = Field(default_factory=dict)
     clarificationKey: Optional[str] = None
     clarificationAnswer: Optional[str] = None
+    # Chat nuevo: id completo del nodo (E5#Cocina), lecturas eliminadas (X roja) y restaurar.
+    nodeId: Optional[str] = None
+    deleted: Optional[List[str]] = None
+    restore: bool = False
+
+
+class ChatEditRequest(BaseModel):
+    """Editar una respuesta anterior: `rewind` borra desde esa pregunta en adelante (chat en curso);
+    `reopen` vuelve a preguntar solo esa (evaluación terminada)."""
+    evaluationId: str
+    state: str
+    nodeId: str
+    mode: str = "reopen"
 
 
 # --- Topología estructurada ---
@@ -135,6 +154,8 @@ class ChatResponse(BaseModel):
     crossChecks: List[str] = Field(default_factory=list)
     # Preguntas de confirmación tras una evidencia: [{key, text, options[]}].
     followUps: List[Dict[str, Any]] = Field(default_factory=list)
-    # Solo E3: imágenes con las credenciales ya desenfocadas (base64). El
+    # Solo la etiqueta del router: imágenes con las credenciales ya desenfocadas (base64). El
     # gateway las guarda en vez de las originales y no las reenvía a la app.
     processedImages: Optional[List[str]] = None
+    # Avisos que aparecen en el chat entre la respuesta y la siguiente pregunta (no piden confirmación).
+    notices: List[Dict[str, Any]] = Field(default_factory=list)

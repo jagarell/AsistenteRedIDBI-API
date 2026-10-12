@@ -12,26 +12,41 @@ from app.chat.engine import ChatEngine
 from app.chat.map_model import MapDocument, apply_command, from_topology
 from app.chat.minuta_doc import MinutaDocument, build_minuta_document
 from app.chat.topology import build_state_topology
-from app.chat.schemas import ChatAmendRequest, ChatAnswerRequest, ChatResponse, ChatStartRequest
+from app.chat.schemas import ChatAmendRequest, ChatAnswerRequest, ChatEditRequest, ChatResponse, ChatStartRequest
+from app.chat.sim.engine import is_v2
+from app.chat.sim.service import SimChat
 
 router = APIRouter(prefix="/chat", tags=["Technical Chat"])
 
-_engine = ChatEngine()
+_engine = ChatEngine()   # evaluaciones iniciadas con el flujo anterior (estado sin versión)
+_sim = SimChat()         # flujo vigente (simulador)
+
+
+def _is_new(state: str) -> bool:
+    try:
+        return is_v2(json.loads(state))
+    except ValueError:
+        return False
 
 
 @router.post("/start", response_model=ChatResponse)
 def start_chat(request: ChatStartRequest) -> ChatResponse:
-    return _engine.start(request)
+    return _sim.start(request)
 
 
 @router.post("/answer", response_model=ChatResponse)
 def answer_chat(request: ChatAnswerRequest) -> ChatResponse:
-    return _engine.answer(request)
+    return _sim.answer(request) if _is_new(request.state) else _engine.answer(request)
 
 
 @router.post("/amend", response_model=ChatResponse)
 def amend_chat(request: ChatAmendRequest) -> ChatResponse:
-    return _engine.amend(request)
+    return _sim.amend(request) if _is_new(request.state) else _engine.amend(request)
+
+
+@router.post("/edit", response_model=ChatResponse)
+def edit_chat(request: ChatEditRequest) -> ChatResponse:
+    return _sim.edit(request)
 
 
 class MinutaDocumentRequest(BaseModel):
