@@ -67,6 +67,42 @@ def analyze(request: AnalyzeRequest):
     )
 
 
+class EvidenceValidateRequest(BaseModel):
+    """Qué evidencia se pidió (`tipo`: speed, chip, ipconfig, scanner, label, conn, selftest, selftestUsb, anydesk,
+    ports, routerlabel o photo), su nombre ("Frontis", "Cocina"…) y la imagen en base64."""
+    tipo: str
+    nombre: str = ""
+    imagen: str
+
+
+class EvidenceValidateResult(BaseModel):
+    corresponde: bool | None = None
+    legible: bool | None = None
+    tipo_detectado: str | None = None
+    campos: Dict[str, object] = {}
+    sin_validar: bool = False
+    mensaje: str | None = None
+
+
+@app.post("/evidencias/validar", response_model=EvidenceValidateResult)
+def validate_evidence(request: EvidenceValidateRequest):
+    """¿La foto es la evidencia pedida y se lee? (docs/analisis/VALIDACION_EVIDENCIAS.md). Si el servicio de visión no
+    responde, la foto se acepta con la marca "sin validar": no se bloquea al técnico en campo."""
+    from app.chat.sim import vision
+
+    result = vision.analyze(request.tipo, request.nombre, [request.imagen])
+    mensaje = None
+    if result.corresponde is False:
+        mensaje = (f"La imagen no corresponde a lo solicitado ({request.nombre or request.tipo}): "
+                   f"se parece a {result.queMuestra or 'otra cosa'}. Vuelve a tomar o subir la foto, o salta la evidencia.")
+    elif result.legible is False:
+        mensaje = "La imagen no es legible. Vuelve a tomar la foto o salta la evidencia."
+    return EvidenceValidateResult(
+        corresponde=result.corresponde, legible=result.legible, tipo_detectado=result.queMuestra,
+        campos=result.data, sin_validar=result.unavailable, mensaje=mensaje,
+    )
+
+
 @app.post("/analyze-photo", response_model=PhotoAnalyzeResult)
 def analyze_photo_endpoint(request: PhotoAnalyzeRequest):
     return analyze_photo(request.category, request.imageBase64)

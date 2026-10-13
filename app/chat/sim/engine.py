@@ -6,6 +6,7 @@ de ahí con `build()`, así que editar una respuesta anterior es simplemente qui
 """
 import copy
 import json
+import os
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -277,7 +278,14 @@ class Session:
         id_ = n["id"]
         base = id_.split("#")[0]
         read = AI_READ_BY_ID.get(base) or (n["read"] if n["read"] != "photo" else "photo")
-        res = vision.analyze(read, n.get("name") or "", images)
+        if os.getenv("VISION_MOCK"):
+            # Solo para pruebas locales sin IA: devuelve la lectura de ejemplo del nodo.
+            mock = {"ports": {"puertos": 4, "libres": 2, "ocupados": 2},
+                    "routerlabel": {"marca": "Huawei", "modelo": "HG8145V5", "sn": "48575443A1B2C3D4"}}.get(read) \
+                or dict((n.get("def") or {}).get("data") or {})
+            res = vision.VisionResult(corresponde=True, legible=True, data=mock)
+        else:
+            res = vision.analyze(read, n.get("name") or "", images)
         info: Dict[str, Any] = {"nodeId": id_, "count": len(images), "processedImages": res.processedImages}
         if res.corresponde is False:
             self._push({"t": "try", "id": id_, "val": {"r": "nc", "m": mode, "like": res.queMuestra}})
