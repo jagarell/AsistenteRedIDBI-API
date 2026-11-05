@@ -159,5 +159,7 @@ class ChatResponse(BaseModel):
     # Solo la etiqueta del router: imágenes con las credenciales ya desenfocadas (base64). El
     # gateway las guarda en vez de las originales y no las reenvía a la app.
     processedImages: Optional[List[str]] = None
+    # Respuestas que vinieron de un adjunto (ficha RUC, recibo...): llevan un clip en la burbuja.
+    attachedNodeIds: List[str] = Field(default_factory=list)
     # Avisos que aparecen en el chat entre la respuesta y la siguiente pregunta (no piden confirmación).
     notices: List[Dict[str, Any]] = Field(default_factory=list)

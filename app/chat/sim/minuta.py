@@ -11,7 +11,8 @@ from app.chat.sim.flow import CAT, build, fmt_date
 from app.chat.sim.map import build_map
 from app.chat.sim.map_print import render_print_png
 from app.chat.sim.reading import CONN_TXT
-from app.chat.sim.rules import evaluate, gen_pasos
+from app.chat.sim.flow import sys_imp_n
+from app.chat.sim.rules import SEG45, bott45, evaluate, gen_pasos
 from app.chat.sim.scoring import lvl, resumen_ia, scores
 from app.chat.sim.util import Obj, fmt, jsround, uniq
 
@@ -110,7 +111,11 @@ def sections(X: Obj, R: Obj, a: Dict[str, Any], d: Dict[str, Any], validada_por:
         head = _rdj([_rds(scn, "equipos", f"{fmt(scn.get('equipos') or 0)} equipos"), _rds(scn, "impresoras", f"impresoras: {scn.get('impresoras') or 'ninguna'}")])
         net.append(_row("Escáner de IP", re.sub(r"^ · ", "", f"{head}{otros}{cam}")))
     if not X.simple:
-        net.append(_row("Dónde irá el router" if X.obra else "Ubicación del router", X.routerUbic or na))
+        ubic = X.routerUbic or na
+        det = d.get("routerDet") or X.routerInst
+        if det and not X.obra:
+            ubic = f"{ubic} · {det}"
+        net.append(_row("Dónde irá el router" if X.obra else "Ubicación del router", ubic, bad=bool(X.routerEnc)))
     if X.router:
         net.append(_row("Router", f"{' '.join(x for x in [RT.get('marca'), RT.get('modelo')] if x) or 'Sin dato'}{(' · SN ' + RT['sn']) if RT.get('sn') else ''} · IP {RT.get('ip') or '—'}"))
         puertos = RT.get("puertos")
@@ -177,9 +182,13 @@ def rules_table(X: Obj, R: Obj, a: Dict[str, Any]) -> List[Dict[str, Any]]:
     if R.sp:
         add("Ping con carga ≤ 300 ms", f"{fmt(R.sp.mp)} ms", R.sp.mp <= 300, "Cumple" if R.sp.mp <= 300 else "Observado")
         add("Velocidad sin tope de 100 Mbps", "Limitada a ~94 Mbps" if has("R65") else "Sin tope", not has("R65"), "Revisar" if has("R65") else "Cumple")
+    sysn = sys_imp_n({"sysImp": X.sysImpN})
     for c in X.cajasInfo or []:
         if c.eq == "SI":
-            add(f"PC de {c.nm} por cable", "Conectada por WiFi" if c.pcWifi else "Conectada por cable", not c.pcWifi, "Observado" if c.pcWifi else "Cumple")
+            sy = c.sysImp is not False
+            name = f"PC de {c.nm} con {sysn} por cable" if (c.pcWifi and sy) else f"PC de {c.nm}" if c.pcWifi else f"PC de {c.nm} por cable"
+            res = ("Conectada por WiFi" if sy else f"Conectada por WiFi · sin {sysn}: no impide iniciar") if c.pcWifi else "Conectada por cable"
+            add(name, res, not (c.pcWifi and sy), ("Observado" if sy else "No bloquea") if c.pcWifi else "Cumple")
     for p in X.printers or []:
         if not p.con:
             continue
@@ -200,6 +209,18 @@ def rules_table(X: Obj, R: Obj, a: Dict[str, Any]) -> List[Dict[str, Any]]:
     if X.bw and X.plan:
         ok = X.con == "CHIP" or X.plan >= X.bw.min
         add("Plan cubre el mínimo por equipo", f"{fmt(X.plan)} Mbps / mínimo {fmt(X.bw.min)} Mbps", ok, "Cumple" if ok else "Observado")
+    S = X.sw46
+    if S and S.map:
+        ub = [r for r in S.map if r.port]
+        add("Impresoras ubicadas en el switch", f"{len(ub)} de {len(S.map)}", len(ub) == len(S.map), "Cumple" if len(ub) == len(S.map) else "Revisar")
+        bad = [r for r in ub if r.loss > 2 or r.lat > 50]
+        if ub:
+            add("Calidad de los puntos de red (ping)", "Sin pérdida" if not bad else ", ".join(f"IMP. {r.name}: {r.loss} %" for r in bad), not bad, "Cumple" if not bad else "Observado")
+    if has("R_ROUTER_ENC"):
+        add("Ubicación del router: altura y obstáculos", X.routerInst or "Espacio cerrado", False, "Observado")
+    b = bott45(R)
+    if b:
+        add("Velocidad con carga (cuello de botella)", f"El ping sube de {fmt(b['p']) or '—'} ms a {fmt(b['mp'])} ms con carga", False, "Seguimiento")
     pend = [] if X.simple else [k for k in a if re.match(r"^E", k) and a[k] and a[k].get("v") == "SKIP"]
     add("Evidencias completas", f"{len(pend)} pendientes" if pend else "Todas subidas", not pend, "Incompleto" if pend else "Verificado")
     return L
@@ -309,10 +330,13 @@ def build_document(state_answers: Dict[str, Any], ctx: Dict[str, Any], edits: Op
     edits = edits or {}
     meta = meta or {}
     N, X = build(a, ctx)
-    R = evaluate(X, a)
-    S = scores(X, R, a)
+    X.sysImpN = (ctx or {}).get("sysImp")
     d = edits.get("datos") or {}
     o = edits.get("obs") or {}
+    R = evaluate(X, a, {"obs": o.get("tec"), "res": edits.get("res"), "rules": (ctx or {}).get("rules"), "rdel": (ctx or {}).get("rdel"),
+                        "routerEncF": edits.get("routerEncF"), "sysImp": (ctx or {}).get("sysImp")})
+    S = scores(X, R, a)
+    empresa = (ctx or {}).get("empresa") or "IDBI"
     ed = edits.get("ed") or {}
     cambios = edits.get("cambios") or []
     name = d.get("nombre") or X.nombre or "el local"
@@ -322,7 +346,9 @@ def build_document(state_answers: Dict[str, Any], ctx: Dict[str, Any], edits: Op
     otros = otros_equipos(m)
     rules = rules_table(X, R, a)
     recs = ed.get("tobe") or [{"t": i.t, "d": i.d} for i in R.it if i.tipo != "AVISO"]
-    pasos = a["P52a"]["v"] if a.get("P52a") else gen_pasos(X, R, a)
+    pasos = list(a["P52a"]["v"] if a.get("P52a") else gen_pasos(X, R, a))
+    if any(i.id == "R_ROUTER_ENC" for i in R.it) and not any(p["t"] == SEG45 for p in pasos):
+        pasos.append({"p": "ID", "t": SEG45})
     pr = [p for p in X.printers or [] if p.con]
     pago = uniq([*[p for p in (o.get("pago") or []) if p != "Otro"], *([o["pagoOtro"]] if "Otro" in (o.get("pago") or []) and o.get("pagoOtro") else [])])
     has_obs = bool(o.get("tec") or o.get("serie") or o.get("viab") or pago or o.get("otroT") or cambios)
@@ -364,6 +390,23 @@ def build_document(state_answers: Dict[str, Any], ctx: Dict[str, Any], edits: Op
                                    CONN_L[p.con] + (f" · {p.viaL.lower()}" if p.viaL else ""), est], "badLast": bool(bad)})
         blocks.append({"t": "h3", "text": "Impresoras"})
         blocks.append({"t": "table", "head": ["Nombre", "Ubicación", "Marca y modelo · SN", "IP · MAC", "Conexión", "Estado"], "rows": rows, "firstBold": True})
+    sw = X.sw46
+    if sw and sw.map:
+        blocks.append({"t": "h3", "text": "Switch · puertos"})
+        blocks.append({"t": "table", "head": ["Puerto", "Impresora", "IP", "Ping y pérdida", "Estado"], "firstBold": True,
+                       "rows": [{"cells": [str(r.port) if r.port else "—", f"IMP. {r.name}", r.ip,
+                                           f"{r.lat} ms · {r.loss} %" if r.port else "—",
+                                           "Observado" if (r.port and (r.loss > 2 or r.lat > 50)) else "Ubicada" if r.port else "No está en este switch" if r.st == "none" else "Sin ubicar"],
+                                 "badLast": bool(r.port and (r.loss > 2 or r.lat > 50))} for r in sw.map]})
+        if sw.rot:
+            blocks.append({"t": "para", "text": f"Puntos de red rotulados en el switch: {sw.rot}."})
+    RT = X.router or {}
+    creds = ([{"eq": "Red WiFi del router", "usr": RT.get("ssid") or "—", "pw": RT.get("clave") or "—"}] if (RT.get("ssid") or RT.get("clave")) else []) \
+        + [{"eq": c.get("eq") or "Equipo", "usr": c.get("usr") or "—", "pw": c.get("pw") or ""} for c in (edits.get("cred") or [])]
+    if creds:
+        blocks.append({"t": "h3", "text": "Accesos y contraseñas"})
+        blocks.append({"t": "table", "head": ["Equipo", "Red o usuario", "Contraseña"], "firstBold": True,
+                       "rows": [{"cells": [c["eq"], c["usr"], c["pw"]]} for c in creds]})
     if otros:
         blocks.append({"t": "h3", "text": "Equipos varios"})
         blocks.append({"t": "table", "head": ["Equipo", "Tipo", "Ubicación", "Detalle", "Estado"],
@@ -397,9 +440,9 @@ def build_document(state_answers: Dict[str, Any], ctx: Dict[str, Any], edits: Op
     h2("Aviso de viabilidad")
     blocks.append({"t": "viab", "text": VIABILITY})
     h2("Pasos a seguir")
-    blocks.append({"t": "h3", "text": "Por parte del equipo técnico:"})
+    blocks.append({"t": "h3", "text": f"Por parte del equipo técnico de {empresa}:"})
     blocks.append({"t": "ul", "items": [{"text": p["t"]} for p in pasos if p["p"] != "Cliente"]})
-    blocks.append({"t": "h3", "text": f"Por parte de {name}:"})
+    blocks.append({"t": "h3", "text": "Por parte del cliente:"})
     blocks.append({"t": "ul", "items": [{"text": p["t"]} for p in pasos if p["p"] == "Cliente"]})
     ann = annex(X, a, N)
     if ann["general"] or ann["other"] or ann["printers"] or ann["videos"]:

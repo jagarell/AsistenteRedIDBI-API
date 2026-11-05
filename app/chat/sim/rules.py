@@ -2,7 +2,7 @@
 import re
 from typing import Any, Dict, List, Optional
 
-from app.chat.sim.flow import CAT, fmt_date
+from app.chat.sim.flow import CAT, fmt_date, sys_imp_n
 from app.chat.sim.util import Obj, fmt, jsround, jsum, num, truthy, uniq
 
 MOZOS: List[str] = CAT["MOZOS"]
@@ -43,8 +43,133 @@ def rate(m: Dict[str, Any]) -> Dict[str, str]:
     return {"cal": rk[max(rs, rp)], "rs": rk[rs], "rp": rk[rp]}
 
 
-def evaluate(X: Obj, a: Dict[str, Any]) -> Obj:
+# Reglas de la empresa (Preguntas y reglas del administrador): [id, nombre, tipo, activa, texto, cuándo aplica]
+DEFAULT_RULES: List[List[Any]] = [
+    ["SISIMP", "Sistema de impresiones", "Aviso", True, "", ""],
+    ["OBRA", "Segunda visita técnica", "Recomendación", True, "Recomienda una segunda visita técnica cuando el local esté terminado.", "El local está en obra o remodelación"],
+    ["SIN_INT", "Sin internet", "Observación", True, "Observación: sin internet no se puede iniciar la operación.", "El local no tiene internet"],
+    ["CONTRATAR", "Contratar internet antes de implementar", "Recomendación", True, "Recomienda contratar internet antes de implementar.", "No hay internet contratado"],
+    ["R56", "TP-Link con entrada de chip", "Recomendación", True, "Recomienda usar el chip como respaldo de internet.", "El router es TP-Link con entrada de chip"],
+    ["CHIP_PEND", "Prueba del chip pendiente", "Aviso", True, "Aviso: la prueba del chip queda pendiente.", "Hay chip pero no se probó"],
+    ["R67", "El internet no llega a lo contratado", "Observación", True, "Observación: el internet no llega a lo contratado.", "El test de velocidad da menos de lo contratado"],
+    ["R60", "PC temporal", "Recomendación", False, "Recomienda reemplazarla por un equipo definitivo.", "La PC de caja es temporal"],
+    ["R_RESERVA_IP", "Reservar las IP de las impresoras", "Recomendación", True, "Pedir al proveedor de internet que reserve en el router las IP de las impresoras.", "Hay varios equipos conectados o 3 o más impresoras por red"],
+    ["R_UPS", "UPS para los equipos de red", "Recomendación", True, "Conectar el router, el switch y el equipo de caja a un UPS.", "El cliente indica intermitencias de energía"],
+    ["R_ROUTER_ENC", "Router en un espacio cerrado", "Aviso", True, "El local es apto, pero el equipo técnico debe darle seguimiento para que no tenga intermitencias de internet.",
+     "El router está en un cuarto pequeño con puertas cerca al piso o dentro de un mueble cerrado con puertas (se ve en la foto o se indica)"],
+]
+ENERG19 = re.compile(r"intermitencia(s)? de (la )?(energ|luz|corriente)|cortes? de (luz|energ)|se va la luz|bajones? de (luz|energ|tension)|apagones?", re.I)
+ENC29 = re.compile(r"cuarto (peque|chico|reducido)|cl[oó]set|armario|mueble cerrado|gabinete cerrado|dentro (de |del )?(un |una |el |la )?(mueble|gabinete|armario|cl[oó]set)|caja cerrada|con puertas", re.I)
+
+
+REUB45 = ("Sacar el router del mueble o del espacio cerrado y fijarlo a 1–1.5 m del suelo, en una pared despejada y lo más central posible del local, "
+          "sin objetos delante. Si la fibra no alcanza, dejar el router en su lugar a esa altura y conectar por cable un equipo WiFi (Deco o repetidor) "
+          "a la misma altura en el área de atención.")
+SEG45 = ("Dar seguimiento al router: si se presentan intermitencias o lentitud en los puntos de red, revisar su ubicación y, si se confirma que es "
+         "necesario, indicar al cliente que lo reubique según la recomendación.")
+
+
+def bott45(R: Obj) -> Optional[Dict[str, Any]]:
+    """Cuello de botella con carga: el ping sube mucho con carga (80–300 ms y 4 veces el ping sin carga)."""
+    if not R or not R.sp or not R.sp.get("d"):
+        return None
+    p = num(R.sp["d"].get("p")) or 0
+    mp = R.sp.get("mp") or 0
+    return {"p": p, "mp": mp} if (80 <= mp <= 300 and (not p or mp >= p * 4)) else None
+
+
+def _key_of(i: Obj) -> str:
+    return f"{i.id}|{i.t}"
+
+
+def evaluate(X: Obj, a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Obj:
+    """Reglas de la visita. `ctx` (opcional) trae lo de la minuta y de la empresa:
+    obs (observación del técnico), res (observaciones resueltas en la visita), rules (reglas de la empresa),
+    rdel (reglas eliminadas), routerEncF (router en espacio cerrado indicado al actualizar) y sysImp."""
+    ctx = ctx or {}
+    if ctx.get("routerEncF") and not X.routerEnc:
+        X.routerEnc = "Dentro de un mueble cerrado con puertas" if ctx["routerEncF"] == "MUEBLE" else "En un cuarto pequeño con puertas (cerca al piso)"
+        X.routerInst = X.routerInst or X.routerEnc
+    R = _evaluate_base(X, a, ctx)
+    it = R.it
+    # observaciones resueltas en la visita: dejan de contar
+    res = ctx.get("res") or []
+    keys = {r.get("key") for r in res}
+    R.res = list(res)
+    if keys:
+        R.it = it = [i for i in it if not (i.tipo == "OBS" and _key_of(i) in keys)]
+        if R.estado != "NO APTO":
+            R.estado = "OBSERVADO" if any(i.tipo == "OBS" for i in it) else "APTO"
+    # reserva de IP de las impresoras y UPS
+    pr_ip = [p for p in (X.printers or []) if p.ip and p.con in ("RED", "WIFI")]
+    e1d = a.get("E1d")
+    eqs = int(num((e1d.get("data") or {}).get("equipos")) or 0) if (e1d and e1d.get("v") == "OK" and e1d.get("data")) else 0
+    if pr_ip and (eqs >= 5 or len(pr_ip) >= 3) and not any(i.id == "R_RESERVA_IP" for i in it):
+        it.append(Obj(id="R_RESERVA_IP", tipo="REC", t="Reservar las IP de las impresoras",
+                      d=f"Hay varios equipos conectados al router{f' ({eqs} en el escáner de IP)' if eqs else ''}. Contactar a su proveedor de internet para que, con autorización del cliente, reserve en el router las IP de las impresoras ({', '.join(p.ip for p in pr_ip)}) y no cambien."))
+    txt = " ".join([ctx.get("obs") or "", X.apreciacion or ""])
+    if ENERG19.search(txt) and not any(i.id == "R_UPS" for i in it):
+        it.append(Obj(id="R_UPS", tipo="REC", t="UPS para los equipos de red y de impresión",
+                      d="El cliente indicó intermitencias de energía. Conectar a un UPS el router, el switch y el equipo con el sistema de impresiones para que la operación no se corte.", eq="UPS"))
+    # evidencias pendientes (el AnyDesk no cuenta) e iMin o Sunmi sin impresora integrada
+    for i in it:
+        if i.id == "EVID":
+            m = re.search(r"Sin lectura: (.*)\. Se completan", i.d or "")
+            if m:
+                L = [x for x in m.group(1).split(", ") if not x.startswith("E7 · ")]
+                i.d = "Sin lectura: " + ", ".join(L) + ". Se completan en la vista previa o desde el chat."
+                i.t = f"Evidencias pendientes ({len(L)})"
+                i._empty = not L
+    R.it = it = [i for i in it if not i._empty]
+    for i in it:
+        i.pop("_empty", None)
+    for c in X.cajasInfo or []:
+        if c.impInt is False:
+            it.append(Obj(id="IMIN_SIN_IMP", tipo="REC", t=f"{c.nm}: {'Sunmi' if c.eq == 'SUNMI' else 'iMin'} sin impresora integrada",
+                          d="Es solo pantalla: se necesita una impresora de caja (de red, o USB conectada a una PC o laptop con el sistema de impresiones).", eq="impresora de caja"))
+    # reglas desactivadas o eliminadas por la empresa; las editadas usan su texto
+    rules = ctx.get("rules") or DEFAULT_RULES
+    off = {r[0] for r in rules if not r[3]} | set(ctx.get("rdel") or [])
+    R.it = it = [i for i in it if i.id not in off]
+    for r in rules:
+        if len(r) > 6 and r[6]:
+            for i in it:
+                if i.id == r[0]:
+                    i.t = r[1]
+                    if r[4]:
+                        i.d = r[4]
+    # router en un espacio cerrado: apto, con seguimiento
+    rl = next((r for r in rules if r[0] == "R_ROUTER_ENC"), None)
+    if not (rl and not rl[3]):
+        t2 = " ".join([X.routerUbic or "", ctx.get("obs") or "", X.apreciacion or ""])
+        enc = X.routerEnc
+        if not enc and ENC29.search(t2) and re.search(r"router|m[oó]dem", t2 + " router", re.I):
+            enc = ENC29.search(t2).group(0)
+        if enc and not any(i.id == "R_ROUTER_ENC" for i in it):
+            dd = enc[0].lower() + enc[1:] if re.match(r"^dentro|^en ", enc, re.I) else "en " + enc.lower()
+            it.append(Obj(id="R_ROUTER_ENC", tipo="AVISO", t="Router en un espacio cerrado: dar seguimiento",
+                          d=f"El router está {dd}. {'Además, por' if R.estado == 'NO APTO' else 'El local es apto, pero por'} esta observación el equipo técnico debe darle seguimiento para que no tenga intermitencias de internet (el espacio cerrado y las puertas bajan la señal y calientan el equipo)."))
+    # la regla del router: recomendación breve (el detalle va en Internet)
+    for i in it:
+        if i.id == "R_ROUTER_ENC":
+            i.t, i.d, i.tipo = "Reubicación del router", REUB45, "AVISO"
+    # puertos del switch: calidad del punto de red y rotulado
+    S = X.sw46
+    if S:
+        for r in S.map:
+            if r.port and (r.loss > 2 or r.lat > 50):
+                it.append(Obj(id="R_SW46Q_" + r.name, tipo="OBS", t=f"Punto de red de IMP. {r.name} (puerto {r.port})",
+                              d=f"{r.loss} % de pérdida y {r.lat} ms dentro de la red local: revisar el cableado del punto y su extremo en el switch."))
+        if S.rot and S.rot in ("No", "Parcial"):
+            it.append(Obj(id="R_SW46R", tipo="REC", t="Rotular los puntos de red en el switch",
+                          d="Colocar en cada puerto del switch la etiqueta con el nombre de la impresora o la zona, igual que en la topología."))
+    R.it = it
+    return R
+
+
+def _evaluate_base(X: Obj, a: Dict[str, Any], ctx: Dict[str, Any]) -> Obj:
     it: List[Obj] = []
+    sysn = sys_imp_n(ctx)
 
     def add(o: Dict[str, Any]) -> None:
         it.append(Obj(o))
@@ -88,7 +213,12 @@ def evaluate(X: Obj, a: Dict[str, Any]) -> Obj:
             pct = best / X.plan if X.plan else 0
             mp = max(num(d.get("pd")), num(d.get("pu")))
             sp = Obj(best=best, pct=pct, mp=mp, d=d)
-            V01 = "CUMPLE" if pct >= 0.7 else "OBSERVADO"
+            if not X.plan:
+                V01 = None
+                add({"id": "PLAN_PC", "tipo": "AVISO", "t": "Plan de internet por confirmar",
+                     "d": f"Mejor prueba por cable: {fmt(best)} Mbps. Falta el plan contratado para compararla (se cumple desde el 70 %, Ley 31207)."})
+            else:
+                V01 = "CUMPLE" if pct >= 0.7 else "OBSERVADO"
             if V01 == "OBSERVADO":
                 add({"id": "R67 · V01", "tipo": "OBS", "t": "El internet no llega a lo contratado",
                      "d": f"Mejor prueba por cable: {fmt(best)} Mbps = {jsround(pct * 100)} % de {fmt(X.plan)} Mbps (mínimo 70 %). Revisar con el proveedor."})
@@ -105,9 +235,17 @@ def evaluate(X: Obj, a: Dict[str, Any]) -> Obj:
             V01 = "SIN VERIFICAR"
             add({"id": "V01", "tipo": "AVISO", "t": "Plan sin verificar", "d": "No hay prueba por cable junto al router. No se penaliza."})
     for c in X.cajasInfo or []:
-        if c.pcWifi:
-            add({"id": "V03 · R11", "tipo": "OBS", "t": f"{c.nm}: PC por WiFi", "d": "Conectar la PC de caja por cable de red.",
+        if c.pcWifi and c.sysImp is not False:
+            add({"id": "V03 · R11", "tipo": "OBS", "t": f"{c.nm}: PC con {sysn} por WiFi",
+                 "d": f"Es el equipo con el sistema de impresiones ({sysn}): conectarlo por cable de red.",
                  "trabajo": "punto de red para la PC de caja"})
+        elif c.pcWifi:
+            add({"id": "V03b", "tipo": "REC", "t": f"{c.nm}: PC por WiFi",
+                 "d": f"No tiene el sistema de impresiones ({sysn}), así que no impide iniciar la operación. Si se puede, conectarla por cable de red."})
+        if c.rasp and c.raspCable is False:
+            add({"id": "RASP_WIFI", "tipo": "OBS", "t": f"{c.nm}: Raspberry con {sysn} por WiFi",
+                 "d": f"El Raspberry tiene el sistema de impresiones ({sysn}): conectarlo por cable de red.",
+                 "trabajo": "punto de red para el Raspberry"})
         if c.eq == "TABLET":
             add({"id": "TABLET", "tipo": "REC", "t": f"{c.nm}: Raspberry obligatorio",
                  "d": "El dispositivo que usan en caja es una tablet; las impresoras deben ser de red.", "eq": "kit Raspberry"})
@@ -299,4 +437,13 @@ def gen_pasos(X: Obj, R: Obj, a: Dict[str, Any]) -> List[Dict[str, str]]:
         P.append({"p": "ID", "t": f"Configurar el sistema de impresiones en {ctrl}."})
     if X.estadoV in ("EN_OBRA", "POR_INAUGURAR"):
         P.append({"p": "ID", "t": "Dar seguimiento a la instalación hasta la fecha de inicio."})
+    pc = [t for k, t in (("P01b", "el RUC"), ("P04", "el nombre y cargo del encargado del local"))
+          if (a.get(k) or {}).get("label") == "Por confirmar"]
+    if pc:
+        P.append({"p": "Cliente", "t": f"Enviar {' y '.join(pc)} para completar la minuta."})
+    from app.chat.sim.flow import TEMA
+    pend = [TEMA[k.split("#")[0]] + (f" ({k.split('#')[1]})" if "#" in k else "") for k, e in a.items()
+            if k.split("#")[0] in TEMA and (e or {}).get("pc52")]
+    if pend:
+        P.append({"p": "Cliente", "t": f"Confirmar con ID: {'; '.join(pend)}."})
     return P
