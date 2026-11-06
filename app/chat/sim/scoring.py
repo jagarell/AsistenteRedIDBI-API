@@ -66,7 +66,7 @@ def crit_infra(X: Obj, R: Obj, a: Dict[str, Any]) -> List[Obj]:
                  d="no aplica al rubro" if X.simple else "sin dato" if not X.tomas else f"{len(dev) - sin} de {len(dev)} equipos con toma cerca"))
     deb: List[bool] = []
     for c in X.cajasInfo or []:
-        if c.eq == "SI":
+        if c.eq == "SI" and c.sysImp is not False:
             deb.append(bool(c.pcCable))
         if c.rasp:
             deb.append(bool(c.raspCable))
@@ -147,6 +147,47 @@ def crit_wifi(X: Obj, R: Obj) -> Optional[List[Obj]]:
 
 
 def scores(X: Obj, R: Obj, a: Dict[str, Any]) -> Obj:
+    """Puntajes. Lo resuelto en la visita (R.res) se puntúa como ya corregido; con NO APTO el global no pasa de 59."""
+    res = R.get("res") or []
+    if res:
+        X = _fixed(X, res)
+    s = _scores(X, R, a)
+    if R.estado == "NO APTO" and isinstance(s.g, (int, float)) and s.g >= 60:
+        s.g = 59
+    return s
+
+
+def _fixed(X: Obj, res: List[Dict[str, Any]]) -> Obj:
+    import copy
+    Y = Obj(X)
+    Y.printers = [Obj(p) for p in (X.printers or [])]
+    Y.cajasInfo = [Obj(c) for c in (X.cajasInfo or [])]
+    Y.sinSenal = list(X.sinSenal or [])
+    for r in res:
+        id_ = str(r.get("key", "")).split("|")[0]
+        m = re.match(r"^IMP\. (.+?):", r.get("t") or "")
+        p = next((q for q in Y.printers if q.name == m.group(1)), None) if m else None
+        if id_ in ("R51", "IMP-NC") and p:
+            p.con, p.via = "RED", None
+        if id_ == "USB" and p:
+            p.usbTo = "PC"
+        if id_ == "R55 · V04" and p:
+            p.ip = f"{Y.seg}.250"
+        if id_ == "SWITCH":
+            Y.libres = max(Y.libres or 0, Y.eqCable or 0)
+            Y.switchN = 0
+        if id_ == "ENERGIA":
+            Y.tomas, Y.sinEnergia = "SI", []
+        if id_ == "R19":
+            Y.sinSenal = []
+        if id_ in ("RASP_PTO", "RASP_WIFI"):
+            for c in Y.cajasInfo:
+                if c.rasp:
+                    c.raspPunto = c.raspEnergia = c.raspCable = True
+    return Y
+
+
+def _scores(X: Obj, R: Obj, a: Dict[str, Any]) -> Obj:
     en_obra = X.obra and not R.sp
     conn = None if en_obra else (R.con.pct if R.con else None)
     conn_crit = None if en_obra else (R.con.get("crit") if R.con and R.con.get("crit") else None)
@@ -265,7 +306,7 @@ def verbo(i: Obj, X: Obj) -> Optional[str]:
     return fn() if fn else None
 
 
-def resumen_ia(X: Obj, R: Obj, nombre: Optional[str] = None) -> str:
+def _resumen_base(X: Obj, R: Obj, nombre: Optional[str] = None) -> str:
     name = nombre or X.nombre or "el local"
     fr = uniq([x for x in (verbo(i, X) for i in R.it if i.tipo != "AVISO") if x])
     if not fr:
@@ -280,6 +321,21 @@ def resumen_ia(X: Obj, R: Obj, nombre: Optional[str] = None) -> str:
     else:
         cierre = "Con estos cambios el local queda listo para iniciar con el punto de venta."
     return f"Para el establecimiento {name} se recomienda {lst}. {cierre}"
+
+
+def resumen_ia(X: Obj, R: Obj, nombre: Optional[str] = None) -> str:
+    """Resumen ejecutivo: sin repetir el nombre del local; cuenta lo resuelto en la visita y el seguimiento del router."""
+    from app.chat.sim.rules import bott45
+    s = _resumen_base(X, R, nombre)
+    L = R.get("res") or []
+    if L:
+        t = [f"«{r.get('t')}» ({r.get('fix')})" for r in L]
+        s += f" Durante la visita se había observado {t[0] if len(t) == 1 else '; '.join(t[:-1]) + ' y ' + t[-1]}, y se resolvió en la visita."
+    s = re.sub(r"^Para el establecimiento .+? (se recomienda|la infraestructura)", lambda m: m.group(1)[0].upper() + m.group(1)[1:], s, count=1)
+    b = bott45(R)
+    if any(i.id == "R_ROUTER_ENC" for i in R.it) or b:
+        s += f" El router queda en observación y seguimiento{' (ubicación y velocidad con carga)' if b else ' por su ubicación'}."
+    return s
 
 
 # ---- Referencias (solo en el Análisis IA; nunca en la minuta ni en el PDF) ----

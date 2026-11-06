@@ -10,12 +10,13 @@ import json
 from app.analysis import AnalysisResult, compute_analysis
 from app.chat.sim.engine import is_v2
 from app.chat.checklist import EvidenceChecklistSeed, build_evidence_checklist
+from app.asistente.router import router as asistente_router
 from app.chat.router import router as chat_router
 from app.vision import PhotoAnalyzeRequest, PhotoAnalyzeResult, analyze_photo
 
 app = FastAPI(
     title="IDBI IA Service",
-    version="1.1.0",
+    version="0.0.7",
 )
 
 # CORS: el gateway es el consumidor principal; en producción restringir orígenes.
@@ -27,6 +28,7 @@ app.add_middleware(
 )
 
 app.include_router(chat_router)
+app.include_router(asistente_router)
 
 
 class AnalyzeRequest(BaseModel):

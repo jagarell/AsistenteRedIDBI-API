@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from app.chat.schemas import (
     ChatAmendRequest, ChatAnswerRequest, ChatEditRequest, ChatProposal, ChatResponse, ChatStartRequest, EquipmentRecommendation, InputType,
 )
+from app.chat import adjunto
 from app.chat.sim.engine import BLOCK_KEYS, BLOCKS, RC_FIELDS, Session, StepError, new_state
 from app.chat.sim.flow import fmt_date
 from app.chat.sim.reading import field_specs, read_label
@@ -131,6 +132,9 @@ def node_prompt(s: Session, n: Dict[str, Any]) -> Dict[str, Any]:
         prompt["evidence"] = ev
         if n.get("item") and n["item"].get("opt"):
             prompt["optional"] = True
+    hint = adjunto.POR_NODO.get(n["id"])
+    if hint:
+        prompt["attachHint"] = hint
     return prompt
 
 
@@ -141,6 +145,8 @@ class SimChat:
     def start(self, request: ChatStartRequest) -> ChatResponse:
         ctx = {"technician": request.technicianName or "", "today": request.today or date.today().strftime("%d/%m/%Y"),
                "todayIso": _iso_today(request)}
+        if request.sysImp and request.sysImp.strip():
+            ctx["sysImp"] = request.sysImp.strip()
         return self._respond(request.evaluationId, Session(new_state(ctx)))
 
     def answer(self, request: ChatAnswerRequest) -> ChatResponse:
@@ -158,6 +164,7 @@ class SimChat:
                     last_evidence = self._evidence_info(before, info)
                 return self._respond(request.evaluationId, s, last_evidence=last_evidence, processed=processed, answered_id=None)
             s.answer(request.answer)
+            s.apply_prefill()
         except StepError as exc:
             return self._respond(request.evaluationId, s, validation_error=str(exc), answered_id=None)
         evidence = None
@@ -171,6 +178,7 @@ class SimChat:
         try:
             node_id = request.nodeId or (f"{request.evidenceCode}#{request.evidenceScope}" if request.evidenceScope else request.evidenceCode)
             s.amend_reading(node_id, request.fields, request.deleted, request.restore)
+            s.apply_prefill()
         except StepError as exc:
             return self._respond(request.evaluationId, s, validation_error=str(exc))
         return self._respond(request.evaluationId, s)
@@ -182,6 +190,7 @@ class SimChat:
                 s.rewind(request.nodeId)
             else:
                 s.reopen(request.nodeId)
+            s.apply_prefill()
         except StepError as exc:
             return self._respond(request.evaluationId, s, validation_error=str(exc))
         return self._respond(request.evaluationId, s)
@@ -215,6 +224,11 @@ class SimChat:
             node["evidencesTotal"] = counts["e"]
         if answered_id is not None:
             notices = s.alerts_between(answered_id, cur if not done else None)
+        if done:
+            pend = s.por_confirmar()
+            if pend:
+                notices = notices + [{"id": "PC_FIN", "tone": "warn", "tag": "POR CONFIRMAR",
+                                      "text": "Quedan por confirmar: " + "; ".join(pend) + "."}]
         percent = 100 if done or (cur and cur["kind"] == "summary") else s.percent()
         answered = counts["qa"] + counts["ea"]
         proposal = None
@@ -231,6 +245,7 @@ class SimChat:
             answeredQuestions=answered, totalQuestions=counts["q"] + counts["e"],
             progressPercent=percent, completed=done, answers=answers, proposal=proposal,
             state=json.dumps(s.state, ensure_ascii=False), node=node, validationError=validation_error,
+            attachedNodeIds=[k for k, e in s.A.items() if isinstance(e, dict) and e.get("src") == "adjunto"],
             lastEvidence=last_evidence, crossChecks=[], followUps=[], processedImages=processed, notices=notices,
         )
 

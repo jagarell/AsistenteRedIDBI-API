@@ -11,7 +11,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.chat.sim import vision
-from app.chat.sim.flow import CAT, PERFIL, build, fmt_date, is_ev_step
+from app.chat.sim.flow import CAT, PC, PERFIL, build, fmt_date, is_ev_step
 from app.chat.sim.reading import field_specs, read_label
 from app.chat.sim.rules import evaluate, gen_pasos
 from app.chat.sim.scoring import resumen_ia, scores
@@ -26,6 +26,57 @@ EV_LIKE_N = CAT["EV_LIKE_N"]
 STATE_VERSION = 2
 # Qué lee la IA en las fotos que se muestran como "photo" (no tienen lectura propia en el chat)
 AI_READ_BY_ID = {"E2": "ports", "E2e": "routerlabel"}
+
+
+SI_RE = re.compile(r"^(s[ií]\b|claro|tiene\b|hay\b|a veces|algun|de vez|ocasional|frecuent|seguido|todos|siempre)", re.I)
+NO_RE = re.compile(r"^(no\b|nunca|ningun|jam[aá]s)", re.I)
+NO_SE = re.compile(r"^(no\s*s[eé]|no\s*lo\s*s[eé]|no\s*(lo\s*)?tengo|no\s*sabe|no\s*hay|desconozco)(?=[\s.,!]|$)", re.I)
+POR_CONFIRMAR = {"P01b", "P04"}
+TOPE = {"P12": (1, 20), "P15": (1, 10000), "P47a": (0, 64)}
+
+
+def _n(s: Any) -> str:
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", str(s).lower()) if unicodedata.category(c) != "Mn").strip()
+
+
+def match_option(n: Dict[str, Any], text: str) -> Optional[Dict[str, Any]]:
+    """Busca la opción que corresponde a lo que el usuario escribió (sin tildes ni mayúsculas)."""
+    t, opts = _n(text), [o for o in n["opts"] if not o.get("otro")]
+    if NO_SE.match(text.strip()):
+        return next((o for o in n["opts"] if re.search(r"no (lo )?s[eé]|saltar|omitir|a[uú]n no lo decide", o["l"], re.I)), None)
+    hit = [o for o in opts if _n(o["l"]) == t or str(o["v"]).lower() == t]
+    try:
+        k = float(text.replace(",", "."))
+        hit = hit or [o for o in opts if o["v"] == k or o["l"].split(" ")[0] == text]
+    except ValueError:
+        pass
+    hit = hit or [o for o in opts if t and t in _n(o["l"])]
+    return hit[0] if len(hit) == 1 else None
+
+
+def norm_pc(id_: str, val: Dict[str, Any], unit: str = "") -> Dict[str, Any]:
+    """«No lo sé ahora» y «Otro» de las preguntas que dependen del cliente."""
+    base = id_.split("#")[0]
+    if base not in PC:
+        return val
+    if val["v"] == "NS52":
+        return {"v": PC[base], "label": "Por confirmar", "pc52": True}
+    if val["v"] != "OTRO":
+        return val
+    t = str(val["label"]).strip()
+    if base in TOPE:
+        m = re.search(r"\d+", t)
+        k = int(m.group()) if m else None
+        ok = k is not None and TOPE[base][0] <= k <= TOPE[base][1]
+        label = f"{k} {unit}".strip() if ok and re.fullmatch(r"\d+", t) else t
+        return {"v": k if ok else PC[base], "label": label, "pc52": not ok}
+    if base == "P22b":
+        m = "RASPBERRY" if re.search(r"rasp", t, re.I) else "LAPTOP" if re.search(r"laptop|port[aá]til", t, re.I) \
+            else "PC" if re.search(r"\bpc\b|computador", t, re.I) else None
+        return {"v": m or PC[base], "label": t, "pc52": m is None}
+    m = "SI" if SI_RE.match(t) else "NO" if NO_RE.match(t) else None
+    return {"v": m or PC[base], "label": t, "pc52": m is None}
 
 
 class StepError(Exception):
@@ -145,12 +196,15 @@ class Session:
                     k = int(k) if k.is_integer() else k
                     unit = n.get("unit") or ""
                     return {"v": k, "label": f"{k} {unit}".strip()}
-                return {"v": "OTRO", "label": other}
+                return norm_pc(n["id"], {"v": "OTRO", "label": other}, n.get("unit") or "")
             for o in n["opts"]:
                 if str(o["v"]) == text:
                     if o.get("otro"):
                         raise StepError("Escribe cuál es.")
-                    return {"v": o["v"], "label": self._opt_label(o)}
+                    return norm_pc(n["id"], {"v": o["v"], "label": self._opt_label(o)}, n.get("unit") or "")
+            o = match_option(n, text)
+            if o is not None and not o.get("otro"):
+                return norm_pc(n["id"], {"v": o["v"], "label": self._opt_label(o)}, n.get("unit") or "")
             raise StepError("Elige una de las opciones.")
         if kind == "multi":
             if text == "@NONE":
@@ -166,6 +220,8 @@ class Session:
                 raise StepError("Elige al menos una opción.")
             return {"v": arr, "label": ", ".join(arr) if arr else "Ninguno"}
         if kind == "text":
+            if n["id"] in POR_CONFIRMAR and (text in ("No lo tengo ahora", "No está en el local") or NO_SE.match(text)):
+                return {"v": "", "label": "Por confirmar"}
             if text in n.get("sug", []) and text in ("Saltar", "Continuar sin enlace"):
                 return {"v": "", "label": text}
             t = re.sub(r"\s+", "", text) if n.get("num") else text
@@ -196,6 +252,9 @@ class Session:
         if kind == "rcard":
             d = self._json(text, dict)
             out = {k: d.get(k) for k in ("ip", "proveedor", "marca", "modelo", "sn")}
+            for k in ("ssid", "clave"):  # red WiFi del router y su contraseña (van a la minuta)
+                if k in d:
+                    out[k] = str(d.get(k) or "")
             for k in ("puertos", "libres", "ocupados"):
                 v = d.get(k)
                 out[k] = None if v in (None, "") else _num(v)
@@ -395,14 +454,42 @@ class Session:
         return {"q": max(q, est["q"]), "qa": qa, "e": max(e, est["e"]), "ea": ea}
 
     def percent(self) -> int:
-        total = answered = 0
-        for n in self.N:
-            if n["kind"] in ("alert", "fin"):
-                continue
-            total += 1
+        """Avance sobre el total estimado (preguntas + evidencias), igual que el contador «Pregunta N de ~T»."""
+        c = self.counts()
+        return min(99, jsround(100 * (c["qa"] + c["ea"]) / max(c["q"] + c["e"], 1)))
+
+    # ---- respuestas que vienen de un adjunto ----------------------------------------
+    def apply_prefill(self) -> List[str]:
+        """Responde en orden las preguntas que ya tienen dato del adjunto. Se detiene en la primera que no valida."""
+        pre = self.state.setdefault("pre", {})
+        used: List[str] = []
+        for _ in range(40):
+            n = self.current()
+            if not n or n["id"] not in pre:
+                break
+            c = pre.pop(n["id"])
             if self.A.get(n["id"]) is not None:
-                answered += 1
-        return jsround(100 * answered / max(total, 1))
+                continue
+            try:
+                val = self._parse(n, str(c["v"]))
+            except StepError:
+                break
+            val["src"] = "adjunto"
+            self.state["order"].append({"t": "ans", "id": n["id"], "val": val})
+            self.replay()
+            used.append(n["id"])
+        return used
+
+    def por_confirmar(self) -> List[str]:
+        """Lo que quedó «Por confirmar» (RUC, encargado y preguntas del cliente), en palabras."""
+        from app.chat.sim.flow import TEMA
+        out = [t for k, t in (("P01b", "el RUC"), ("P04", "el nombre y cargo del encargado del local"))
+               if (self.A.get(k) or {}).get("label") == "Por confirmar"]
+        for k, e in self.A.items():
+            b = k.split("#")[0]
+            if b in TEMA and (e or {}).get("pc52"):
+                out.append(TEMA[b] + (f" ({k.split('#')[1]})" if "#" in k else ""))
+        return out
 
     # ---- salidas ----------------------------------------------------------------
     def scores(self) -> Obj:

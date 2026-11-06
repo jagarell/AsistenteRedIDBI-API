@@ -3,16 +3,21 @@ gateway los consume tal cual), más la metadata de preguntas y el documento
 de la minuta."""
 import base64
 import json
+import re
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from typing import List
+
+from app.chat import adjunto
 from app.chat.engine import ChatEngine
 from app.chat.map_model import MapDocument, apply_command, from_topology
 from app.chat.minuta_doc import MinutaDocument, build_minuta_document
 from app.chat.topology import build_state_topology
 from app.chat.schemas import ChatAmendRequest, ChatAnswerRequest, ChatEditRequest, ChatResponse, ChatStartRequest
+from app.chat.sim import flow
 from app.chat.sim.engine import Session, is_v2
 from app.chat.sim.map import build_map, map_height, to_document
 from app.chat.sim.minuta import build_document
@@ -106,3 +111,44 @@ def map_command(request: MapCommandRequest) -> MapCommandResponse:
     """"Pide un cambio al mapa…": aplica una orden en lenguaje natural."""
     doc, reply = apply_command(request.map, request.command)
     return MapCommandResponse(map=doc, reply=reply)
+
+
+class AdjuntoRequest(BaseModel):
+    evaluationId: str
+    state: str
+    tipo: Optional[str] = None          # ruc | comp | recibo | tarjeta | frontis (si el usuario lo eligió)
+    imagesBase64: List[str] = []
+
+
+class AdjuntoUsarRequest(BaseModel):
+    evaluationId: str
+    state: str
+    campos: List[Dict[str, Any]]        # filas marcadas, con el valor ya corregido por el usuario
+
+
+def _validar_nodo(s: Session, nodo: str, v: str) -> str:
+    fn = {"P01b": flow._valid_ruc, "P05": flow._valid_cel, "P05b": flow._valid_mail}.get(nodo)
+    return fn(re.sub(r"\s+", "", v) if nodo in ("P01b", "P05") else v) if fn else ""
+
+
+@router.post("/adjunto")
+def leer_adjunto(req: AdjuntoRequest) -> Dict[str, Any]:
+    s = Session(json.loads(req.state))
+    r = adjunto.leer(req.tipo, req.imagesBase64)
+    if r["status"] != "OK" or not r["tipo"]:
+        return {"status": r["status"] if r["status"] != "OK" else "TIPO", "tipos": {k: t["l"] for k, t in adjunto.TIPOS.items()}}
+    return {"status": "OK", "tipo": r["tipo"], "titulo": adjunto.TIPOS[r["tipo"]]["l"], "nota": adjunto.TIPOS[r["tipo"]].get("nota"),
+            "campos": adjunto.campos(r["tipo"], r["valores"], s.A, lambda nodo, v: _validar_nodo(s, nodo, v))}
+
+
+@router.post("/adjunto/usar", response_model=ChatResponse)
+def usar_adjunto(req: AdjuntoUsarRequest) -> ChatResponse:
+    s = Session(json.loads(req.state))
+    pre = s.state.setdefault("pre", {})
+    for c in req.campos:
+        if s.A.get(c["nodeId"]) is None:
+            err = _validar_nodo(s, c["nodeId"], str(c.get("valor") or ""))
+            if not err:
+                pre[c["nodeId"]] = adjunto.a_prefill(c)
+    s.apply_prefill()
+    return _sim._respond(req.evaluationId, s)

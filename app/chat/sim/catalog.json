@@ -1763,6 +1763,16 @@
    "ocupados",
    "Puertos ocupados",
    "number"
+  ],
+  [
+   "ssid",
+   "Red WiFi (nombre)",
+   "text"
+  ],
+  [
+   "clave",
+   "Contraseña de la red WiFi",
+   "text"
   ]
  ],
  "ERR": {

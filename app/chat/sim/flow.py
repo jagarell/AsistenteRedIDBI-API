@@ -23,7 +23,73 @@ PROV = [
     {"v": "MOVISTAR", "l": "Movistar"}, {"v": "CLARO", "l": "Claro"}, {"v": "ENTEL", "l": "Entel"},
     {"v": "WIN", "l": "WIN"}, {"v": "BITEL", "l": "Bitel"}, {"v": "OTRO", "l": "Otro (escribir)", "otro": True},
 ]
+# Preguntas que dependen del cliente: valor prudente cuando el técnico responde «No lo sé ahora»
+PC = {"P12": 1, "P12b": "NO", "P15": "OTRO", "P16": "NS", "P17": "NS", "P09c": "SI", "P47": "NO", "P47a": 0,
+      "P22g": "SI", "P22a": "NO", "P22b": "PEND", "P28h": "NO"}
+TEMA = {"P12": "el número de cajas", "P12b": "si saldrán comandas en caja", "P15": "la velocidad del plan de internet",
+        "P16": "si tiene internet de respaldo", "P17": "si el local tiene caídas de internet",
+        "P09c": "si los mozos tomarán pedidos con tablet o celular", "P47": "si se conectarán cámaras a la red",
+        "P47a": "cuántas cámaras irán conectadas a la red", "P22g": "si el equipo de caja se queda en el local",
+        "P22a": "si ya cuenta con un Raspberry", "P22b": "qué equipo adquirirá para el sistema de impresiones",
+        "P28h": "si ya tiene la impresora"}
+
+
+def pc_opts(id_: str, opts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """«Otro (escribir)» con texto libre (también en P12, P15 y P47a) + «No lo sé ahora»."""
+    out = [dict(o, num=False, l="Otro (escribir)") if o.get("otro") else o for o in opts]
+    if not any(o.get("otro") for o in out):
+        out.append({"v": "OTRO", "l": "Otro (escribir)", "otro": True})
+    out.append({"v": "NS52", "l": "Aún no lo decide" if id_ == "P22b" else "No lo sé ahora"})
+    return out
+
+
 EV_KINDS = ["ev", "check", "rcard", "links", "summary"]
+SYS_IMP_DEFAULT = "Wrapper"  # nombre del sistema de impresiones de la empresa (Preguntas y reglas del administrador)
+
+
+def sys_imp_n(ctx: Optional[Dict[str, Any]] = None) -> str:
+    return ((ctx or {}).get("sysImp") or SYS_IMP_DEFAULT).strip() or SYS_IMP_DEFAULT
+
+
+INST47 = {"VISTA": "A la vista, a 1–1.5 m del suelo", "PISO": "A la vista, cerca al piso",
+          "MUEBLE": "Dentro de un mueble cerrado con puertas", "CUARTO": "En un cuarto pequeño con puertas"}
+_W45 = {"uno": "1", "dos": "2", "tres": "3", "cuatro": "4", "cinco": "5"}
+
+
+def det45(t: str) -> List[str]:
+    """Detalle de la ubicación del router escrito por el técnico (altura, mueble, cuarto, paredes, medidas)."""
+    s = str(t or "").lower()
+    out: List[str] = []
+    if re.search(r"ras del (suelo|piso)|cerca (al|del) (piso|suelo)|en el piso|en el suelo", s):
+        out.append("casi al ras del suelo")
+    if re.search(r"mueble|gabinete|armario|cl[oó]set", s):
+        out.append("dentro de un mueble cerrado" + (" con puertas de melamina" if "melamin" in s else ""))
+    if re.search(r"cuarto (peque|chico|reducido)", s):
+        out.append("en un cuarto pequeño")
+    if re.search(r"paredes? gruesas?", s):
+        out.append("entre paredes gruesas")
+    dims: List[str] = []
+    rx = r"(\d+(?:[.,]\d+)?|uno|dos|tres|cuatro|cinco)\s*(?:metros?|m)\s*(y medio\s*)?(?:de\s*)?(profundidad|altura|altitud|alto|ancho)"
+    for m in re.finditer(rx, s):
+        v = _W45.get(m.group(1)) or m.group(1).replace(",", ".")
+        if m.group(2):
+            v = fmt(float(v) + 0.5)
+        k = "alto" if m.group(3) in ("altitud", "altura") else m.group(3)
+        dims.append(f"{v} m de {k}")
+    if dims:
+        if "en un cuarto pequeño" in out:
+            out[out.index("en un cuarto pequeño")] = "en un cuarto pequeño (" + ", ".join(dims) + ")"
+        else:
+            out.append("cuarto de " + ", ".join(dims))
+    return out
+
+
+def q46(name: str) -> Dict[str, int]:
+    """Resultado de los pings a una impresora (en la app lo mide el celular; aquí es determinístico)."""
+    h = 0
+    for c in str(name):
+        h = (h * 31 + ord(c)) % 997
+    return {"lat": 1 + h % 7, "loss": 4 if h % 7 == 3 else 0}
 
 
 def fmt_date(s: Any) -> Any:
@@ -53,6 +119,12 @@ def _valid_mail(t: str) -> str:
     return "" if re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", t) else "Ingresa un correo válido."
 
 
+P18I = ch("P18i", "C", "En la foto de ubicación, ¿cómo está instalado el router?",
+          [{"v": "VISTA", "l": INST47["VISTA"]}, {"v": "PISO", "l": INST47["PISO"]}, {"v": "MUEBLE", "l": INST47["MUEBLE"]},
+           {"v": "CUARTO", "l": INST47["CUARTO"]}, {"v": "OTRO", "l": "Otro (describir: altura, mueble, paredes, medidas)", "otro": True}],
+          {"def": "VISTA"})
+
+
 def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List[Dict[str, Any]], Obj]:
     ctx = ctx or {}
     N: List[Dict[str, Any]] = []
@@ -63,6 +135,8 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
         return e.get("v") if e else None
 
     def push(n: Dict[str, Any]) -> Dict[str, Any]:
+        if n.get("kind") == "choice" and str(n["id"]).split("#")[0] in PC and not n.get("pc_done"):
+            n = dict(n, opts=pc_opts(str(n["id"]).split("#")[0], n["opts"]), pc_done=True)
         N.append(n)
         return n
 
@@ -77,7 +151,7 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
           "ph": "Escribe la razón social", "def": "Inversiones Ejemplo S.A.C."})
     X.razon = lab("P01")
     if a.get("P01"):
-        push({"id": "P01b", "b": "A", "kind": "text", "text": "¿Cuál es el RUC?", "sug": [], "ph": "RUC de 11 dígitos",
+        push({"id": "P01b", "b": "A", "kind": "text", "text": "¿Cuál es el RUC?", "sug": ["No lo tengo ahora"], "ph": "RUC de 11 dígitos",
               "num": True, "valid": _valid_ruc, "def": "20601234567"})
     X.ruc = lab("P01b")
     if a.get("P01b"):
@@ -95,7 +169,7 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
         push({"id": "I_PATIO", "kind": "alert", "tone": "info", "tag": "PATIO",
               "text": "La dirección está en el patio de comidas de un centro comercial grande. Se suma el modificador de patio sin preguntar."})
     if dir_ is not None:
-        push({"id": "P04", "b": "A", "kind": "text", "text": "¿Quién es el encargado del local? (nombre y cargo)", "sug": [],
+        push({"id": "P04", "b": "A", "kind": "text", "text": "¿Quién es el encargado del local? (nombre y cargo)", "sug": ["No está en el local"],
               "ph": "Nombre y cargo del encargado", "def": "Carlos Pérez, administrador"})
     X.encargado = lab("P04")
     if a.get("P04"):
@@ -132,10 +206,8 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
     X.inaug = est == "POR_INAUGURAR"
     X.anterior = est == "SISTEMA_ANTERIOR"
     X.mozosQ = rub in CAT["MOZOS"]
-    if X.mozosQ:
-        push(ch("P09c", "B", "¿Hay mozos que toman pedidos con tablet o celular?", YN,
-                {"def": "NO" if rub in CAT["MOZOS_RARO"] else "SI"}))
-    moz_ready = (not X.mozosQ) or bool(a.get("P09c"))
+    # P09c (mozos con tablet) se pregunta al final, justo antes del WiFi por zona
+    moz_ready = True
     prep: List[str] = []
     if rub and moz_ready:
         if X.simple:
@@ -352,6 +424,8 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
             if a.get("P18"):
                 push({"id": "E2u", "b": "C", "kind": "ev", "read": "photo", "name": "dónde irá el router",
                       "text": "Sube una foto del lugar donde irá el router.", "def": {"data": {}}})
+            if a.get("E2u") and not X.obra:
+                push(P18I)
             c_block_ready = bool(a.get("E2u"))
             X.testDone = False
         else:
@@ -394,6 +468,8 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
                     push({"id": "E2u", "b": "C", "kind": "ev", "read": "photo", "name": "la ubicación del router",
                           "text": con_toma("Router", "Sube una foto de dónde está ubicado el router (que se vea el lugar y cómo está instalado)."),
                           "def": {"data": {}}})
+                if a.get("E2u") and not X.obra:
+                    push(P18I)
                 if a.get("E2u"):
                     push({"id": "E2", "b": "C", "kind": "ev", "read": "photo", "name": "los puertos del router",
                           "text": "Sube una foto del router donde se vean todos sus puertos.", "def": {"data": {}}})
@@ -407,7 +483,8 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
                     push({"id": "RCARD", "b": "C", "kind": "rcard",
                           "text": "Con las 3 fotos del router leí estos datos. Valídalos; si algo no se lee o no es correcto, toca Corregir.",
                           "def": {"ip": gw or "192.168.1.1", "proveedor": X.proveedor or "", "marca": "Huawei", "modelo": "HG8145V5",
-                                  "sn": "48575443A1B2C3D4", "puertos": 4, "libres": 2, "ocupados": 2}})
+                                  "sn": "48575443A1B2C3D4", "puertos": 4, "libres": 2, "ocupados": 2,
+                                  "ssid": "MOVISTAR_7A21", "clave": "K7pQ2mR9tL4x"}})
                 c_block_ready = bool(a.get("RCARD"))
             elif ip_done:
                 c_block_ready = True
@@ -421,6 +498,20 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
     X.camGrab = (X.scanner.get("cam") or None) if X.scanner else None
     X.camIps = (num(X.scanner.get("camIps")) if X.scanner else 0)
     X.routerUbic = lab("P18")
+    X.routerInst = None
+    X.routerEnc = None
+    x18 = a.get("P18i")
+    if x18 and a.get("E2u") and not X.obra:
+        lbl = x18.get("label") or ""
+        if x18.get("v") == "OTRO":
+            d = det45(lbl)
+            X.routerInst = " · ".join(d) if d else lbl
+            if re.search(r"mueble|gabinete|armario|cl[oó]set|cuarto|ras del|piso|suelo", lbl, re.I):
+                X.routerEnc = X.routerInst
+        else:
+            X.routerInst = INST47.get(x18.get("v")) or lbl
+            if x18.get("v") != "VISTA":
+                X.routerEnc = X.routerInst
     X.router = a["RCARD"]["v"] if a.get("RCARD") else None
     libres = X.router.get("libres") if X.router else None
     X.libres = num(libres) if X.router and libres is not None and libres != "" else None
@@ -448,6 +539,9 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
                 if rub_ != "DISCOTECA_BAR" or v("P22g" + k) is not None:
                     push(ch("P23" + k, "D", f"¿Cómo se conecta el equipo de caja{sfx} a la red?",
                             [{"v": "CABLE", "l": "Cable de red"}, {"v": "WIFI", "l": "WiFi"}], {"def": "CABLE"}))
+                if v("P23" + k) == "WIFI":
+                    push(ch("P23w" + k, "D", f"¿En el equipo de caja{sfx} está el sistema de impresiones ({sys_imp_n(ctx)})?", YN, {"def": "SI"}))
+                info.sysImp = (v("P23w" + k) != "NO") if v("P23" + k) == "WIFI" else True
                 info.pcCable = v("P23" + k) == "CABLE"
                 info.pcWifi = v("P23" + k) == "WIFI"
                 info.temporal = v("P22g" + k) == "NO"
@@ -461,7 +555,12 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
                 push({"id": "A_PROV" + k, "kind": "alert", "tone": "warn", "tag": "PROVEEDOR",
                       "text": f"El equipo de caja{sfx} es un {'Sunmi' if e == 'SUNMI' else 'iMin'}. Si no es de Desarrollo de Negocios, no se puede usar porque pertenece a otro proveedor. Tómalo en cuenta."})
             solo_caja = (not prep) or (len(prep) == 1 and X.comparte == prep[0])
-            info.posPropio = e in ("SUNMI", "IMIN") and (X.simple or solo_caja)
+            if e in ("SUNMI", "IMIN"):
+                push(ch("P22i" + k, "D", f"¿El {'Sunmi' if e == 'SUNMI' else 'iMin'}{sfx} tiene impresora integrada?",
+                        [{"v": "SI", "l": "Sí, tiene impresora"}, {"v": "NO", "l": "No, solo es pantalla"},
+                         {"v": "FOTO", "l": "No sé el modelo (enviar foto)"}], {"def": "SI"}))
+                info.impInt = v("P22i" + k) != "NO"
+            info.posPropio = e in ("SUNMI", "IMIN") and info.impInt is not False and (X.simple or solo_caja)
             sin_pc = (not info.posPropio) and (e in ("TABLET", "SUNMI", "IMIN", "NO", "NO_SE", "OTRO") or (bool(info.temporal) and v("P23" + k) is not None))
             if sin_pc and not X.simple:
                 push(ch("P22a" + k, "D", f"¿El cliente ya cuenta con un Raspberry{sfx}?", YN, {"def": "NO"}))
@@ -694,13 +793,18 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
                   "text": f"El router tiene {fmt(X.libres)} puertos libres y hay {n} equipos por cable. Recomienda un Switch x{X.switchN} e implementar los puntos de red que falten."})
 
     # H · WiFi y cámaras
+    moz_ask = printers_done and X.mozosQ and not X.simple and not X.obra
+    if moz_ask:
+        push(ch("P09c", "H", "¿Hay mozos que toman pedidos con tablet o celular?", YN,
+                {"def": "NO" if rub in CAT["MOZOS_RARO"] else "SI"}))
+    moz_ok = (not moz_ask) or bool(a.get("P09c"))
     X.wifiSkip = X.simple or X.obra or (X.mozosQ and v("P09c") == "NO")
     all_z = uniq([*[z["z"] for z in zonas], *prep])
     X.allZ = [] if X.simple else all_z
     X.sinSenal = []
     X.wz = []
     wifi_done = False
-    if printers_done:
+    if printers_done and moz_ok:
         if X.simple:
             wifi_done = True
         elif X.wifiSkip:
@@ -794,7 +898,73 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
                 push({"id": "SUM", "b": "I", "kind": "summary", "text": "Evidencias de la visita"})
             if a.get("SUM"):
                 push({"id": "FIN", "kind": "fin", "text": "Evaluación completada. He procesado tus respuestas y generado la minuta técnica."})
+    _switch_ports(N, X, a)
     return N, X
+
+
+def _switch_ports(N: List[Dict[str, Any]], X: Obj, a: Dict[str, Any]) -> None:
+    """Paso opcional «Ubicar puerto»: la app hace ping a cada impresora de red conectada a un switch."""
+    X.sw46 = None
+    prn = [p for p in (X.printers or []) if p.con == "RED" and p.via == "SWITCH" and p.ip]
+    if not X.printersDone or not prn:
+        return
+    v = lambda id_: (a.get(id_) or {}).get("v") if a.get(id_) else None
+    nodes: List[Dict[str, Any]] = []
+    nodes.append(ch("PSW", "E", "Paso opcional: ¿quieres ubicar en qué puerto del switch está cada impresora ("
+                    + ", ".join("IMP. " + p.name for p in prn)
+                    + ")? La app envía pings a la IP de cada una y tú miras qué luz del switch parpadea. Si prefieres, puedes saltarlo.",
+                    [{"v": "SI", "l": "Sí, ubicar los puertos"}, {"v": "NO", "l": "Saltar este paso"}], {"def": "NO"}))
+    if v("PSW") == "SI":
+        nodes.append(ch("PSWn", "E", "¿Cuántos puertos tiene el switch?", [{"v": n, "l": str(n)} for n in (5, 8, 16, 24, 48)],
+                        {"unit": "puertos", "def": X.switchN or 8}))
+        n = int(num(v("PSWn")) or 0)
+        if n:
+            nodes.append(ch("PSWu", "E", "¿Qué puerto va al router (puerto de subida)? Se descarta al ubicar las impresoras.",
+                            [{"v": n, "l": f"El último ({n})"}, {"v": 1, "l": "El 1"}, {"v": "OTRO", "l": "Otro (escribir)", "otro": True, "num": True}],
+                            {"unit": "", "def": n}))
+        up = int(num(v("PSWu")) or 0)
+        S = Obj(n=n, up=up, map=[], rot=None)
+        prev = bool(up)
+        used: set = set()
+        for p in prn:
+            if not prev:
+                break
+            id_ = "PSWp#" + p.name
+            ports = [{"v": k, "l": f"Puerto {k}"} for k in range(1, min(n, 16) + 1) if k != up and k not in used]
+            extra = [{"v": "OTRO", "l": "Otro puerto (escribir)", "otro": True, "num": True}] if n > 16 else []
+            nodes.append(ch(id_, "E", f"IMP. {p.name} (IP {p.ip}): la app está enviando pings a su IP durante 20 s, 2 s sí y 2 s no. ¿Qué luz del switch parpadea a ese ritmo?",
+                            ports + extra + [{"v": "NINGUNA", "l": "Ninguna luz sigue el ritmo"}, {"v": "SALTAR", "l": "Saltar esta impresora"}],
+                            {"def": "SALTAR", "sw46": 1}))
+            x = v(id_)
+            if x is None:
+                prev = False
+                break
+            row = Obj(name=p.name, ip=p.ip, port=None, st="skip" if x == "SALTAR" else "none" if x == "NINGUNA" else "ok")
+            if isinstance(x, (int, float)) and not isinstance(x, bool):
+                row.port = x
+                used.add(x)
+                row.update(q46(p.name))
+            if row.st == "none":
+                nodes.append({"id": "A_SW46N" + p.name, "kind": "alert", "tone": "info", "tag": "SWITCH",
+                              "text": f"IMP. {p.name} no está en este switch: puede ir a un repetidor, a otro switch o directo al router. Revisa su cable."})
+            if row.port and (row.loss > 2 or row.lat > 50):
+                nodes.append({"id": "A_SW46Q" + p.name, "kind": "alert", "tone": "warn", "tag": "PUNTO DE RED",
+                              "text": f"Punto de red de IMP. {p.name} (puerto {row.port}) con {row.loss} % de pérdida: queda en observación. Revisa el cableado del punto y su extremo en el switch."})
+            S.map.append(row)
+        if prev and any(r.port for r in S.map):
+            nodes.append(ch("PSWr", "E", "¿Se rotularon los puntos de red en el switch?", [{"v": "SI", "l": "Sí"}, {"v": "PARCIAL", "l": "Parcial"}, {"v": "NO", "l": "No"}], {"def": "SI"}))
+            S.rot = a["PSWr"].get("label") if a.get("PSWr") else None
+        X.sw46 = S
+    at = -1
+    for i, x in enumerate(N):
+        if re.match(r"^(P28|A_(AV|MT|NC|USB|R51|R55))", x.get("id") or ""):
+            at = i
+    if at < 0:
+        fi = next((i for i, x in enumerate(N) if x.get("kind") == "fin"), -1)
+        at = fi if fi >= 0 else len(N)
+    else:
+        at += 1
+    N[at:at] = nodes
 
 
 def current_node(N: List[Dict[str, Any]], a: Dict[str, Any]) -> Optional[Dict[str, Any]]:
