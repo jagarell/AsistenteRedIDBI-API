@@ -145,6 +145,8 @@ class SimChat:
     def start(self, request: ChatStartRequest) -> ChatResponse:
         ctx = {"technician": request.technicianName or "", "today": request.today or date.today().strftime("%d/%m/%Y"),
                "todayIso": _iso_today(request)}
+        if request.sysImp and request.sysImp.strip():
+            ctx["sysImp"] = request.sysImp.strip()
         return self._respond(request.evaluationId, Session(new_state(ctx)))
 
     def answer(self, request: ChatAnswerRequest) -> ChatResponse:

@@ -87,3 +87,13 @@ def test_avance_en_pregunta_4_es_menor_a_15():
 def test_a_prefill_plan_y_proveedor():
     assert adjunto.a_prefill({"nodeId": "P13", "valor": "Movistar"})["v"] == "MOVISTAR"
     assert adjunto.a_prefill({"nodeId": "P15", "valor": "500 Mbps"})["v"] == "500"
+
+
+def test_start_lleva_el_sistema_de_impresiones_de_la_empresa():
+    """El gateway manda `sysImp` (regla SISIMP del administrador) y queda en el contexto del chat."""
+    import json
+    from fastapi.testclient import TestClient
+    from app.main import app
+    r = TestClient(app).post("/chat/start", json={"evaluationId": "1", "sysImp": "PrintHub"})
+    assert r.status_code == 200
+    assert json.loads(r.json()["state"])["ctx"]["sysImp"] == "PrintHub"
