@@ -1,0 +1,7 @@
+diff a/app/chat/schemas.py b/app/chat/schemas.py	(rejected hunks)
+@@ -161,3 +165,5 @@ class ChatResponse(BaseModel):
+     processedImages: Optional[List[str]] = None
+     # Avisos que aparecen en el chat entre la respuesta y la siguiente pregunta (no piden confirmación).
+     notices: List[Dict[str, Any]] = Field(default_factory=list)
++    # Fotos obligatorias dejadas con «Subir después»: [{nodeId, name, text}]. Mientras haya, no se genera la minuta.
++    pendingMandatory: List[Dict[str, Any]] = Field(default_factory=list)

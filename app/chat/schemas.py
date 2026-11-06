@@ -46,8 +46,12 @@ class ChatAnswerRequest(BaseModel):
     answer: str = ""
     # Solo en nodos EVIDENCE: 1..3 fotos en base64.
     photosBase64: List[str] = Field(default_factory=list)
-    # Cómo se consiguió la foto: "tomar" (cámara) o "subir" (galería).
+    # Cómo se consiguió la foto: "tomar" (cámara), "subir" (galería) o "forzar" («Guardar como correcta»).
     mode: Optional[str] = None
+    # Nota opcional de «Guardar como correcta».
+    nota: Optional[str] = None
+    # Foto pendiente de «Subir después» que se sube al final (EV#Calientes); si no viene, es el nodo actual.
+    nodeId: Optional[str] = None
 
 
 class ChatAmendRequest(BaseModel):
@@ -165,3 +169,5 @@ class ChatResponse(BaseModel):
     attachedNodeIds: List[str] = Field(default_factory=list)
     # Avisos que aparecen en el chat entre la respuesta y la siguiente pregunta (no piden confirmación).
     notices: List[Dict[str, Any]] = Field(default_factory=list)
+    # Fotos obligatorias dejadas con «Subir después» (la minuta no se genera mientras haya alguna).
+    pendingMandatory: List[Dict[str, Any]] = Field(default_factory=list)
