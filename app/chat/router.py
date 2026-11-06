@@ -74,6 +74,11 @@ def minuta_document(request: MinutaDocumentRequest):
     state = json.loads(request.state)
     if is_v2(state):
         s = Session(state)
+        falta = [i.split("#", 1)[-1] for i in s.pending_later()]
+        if falta:
+            # fotos obligatorias dejadas con «Subir después»: la minuta no se genera hasta subirlas. El gateway ya
+            # rechaza el PDF cuando viene `missingMandatory` («No se puede generar la minuta: falta …»).
+            return {"missingMandatory": falta}
         return build_document(s.A, state["ctx"], request.edits, request.meta,
                               request.map.model_dump() if request.map else None, images)
     return build_minuta_document(state, request.map, images)

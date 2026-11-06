@@ -33,6 +33,7 @@ TARGETS: Dict[str, str] = {
     "ports": "el router o módem de internet con todos sus puertos a la vista",
     "routerlabel": "la etiqueta de un router o módem con su marca, modelo y número de serie",
     "photo": "una foto del lugar o equipo pedido",
+    "place": "una foto de un lugar dentro de un local comercial",
 }
 
 # datos que se piden por lectura: clave -> descripción
@@ -143,11 +144,17 @@ def analyze(read: str, name: str, images_b64: List[str]) -> VisionResult:
     target = TARGETS.get(read, TARGETS["photo"])
     fields = FIELDS.get(read, {})
     lines = [
-        f'- "esEvidenciaSolicitada": true si las imágenes muestran {target}{f" ({name})" if name else ""}; false si muestran otra cosa (por ejemplo una silla, una pared o una captura de otra app)',
+        f'- "esEvidenciaSolicitada": true si las imágenes muestran {target}{f" ({name})" if name else ""}; false si muestran otra cosa (por ejemplo {"una captura de otra app o un documento" if read == "place" else "una silla, una pared o una captura de otra app"})',
         '- "queMuestra": en pocas palabras, lo que realmente muestra la imagen (para decirle al técnico "se parece a …")',
         '- "legible": true si se leen con claridad los datos que se piden; false si la foto está borrosa, cortada u oscura',
     ] + [f'- "{k}": {v}' for k, v in fields.items()]
     extra = ""
+    if read == "place":
+        extra = (
+            " IMPORTANTE: marca esEvidenciaSolicitada=false SOLO si claramente no es un lugar del local (captura de pantalla, "
+            "documento, selfie o un equipo en primer plano sin el lugar). Ante la duda, true. Un nombre de área que no conoces "
+            "(por ejemplo «Calientes» o «Fríos») no es motivo para rechazar."
+        )
     if read == "routerlabel":
         extra = (
             " IMPORTANTE: NO leas ni transcribas usuario, contraseña, SSID ni clave WiFi/WLAN. Además devuelve \"redacciones\": "

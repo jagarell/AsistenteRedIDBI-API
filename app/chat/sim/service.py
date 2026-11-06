@@ -34,12 +34,14 @@ def err_message(read: str, name: str, last: Optional[Dict[str, Any]], mandatory:
         return None
     r = last["r"]
     if r == "il":
-        return "La evidencia no es legible. Vuelve a tomar la foto." if mandatory else ERR["il"]
+        return ("La evidencia no es legible. Vuelve a tomar la foto o, si se ve bien, toca «Guardar como correcta»." if mandatory
+                else ERR["il"] + " Si se ve bien, también puedes guardarla como correcta.")
     if r == "wrong":
         return ERR["wrong"]
     if r == "nc":
         like = last.get("like") or "otra cosa"
-        tail = "Vuelve a subir la foto." if mandatory else "Vuelve a tomar o subir la foto, o salta la evidencia."
+        tail = ("Vuelve a subir la foto o, si es la correcta, toca «Guardar como correcta»." if mandatory
+                else "Vuelve a tomar o subir la foto, guárdala como correcta o salta la evidencia.")
         return f"La imagen no corresponde a lo solicitado ({name or 'la evidencia'}): se parece a {like}. {tail}"
     return None
 
@@ -129,7 +131,15 @@ def node_prompt(s: Session, n: Dict[str, Any]) -> Dict[str, Any]:
             ev["message"] = err_message(n["read"], n.get("name") or "", last, mandatory)
         ev["status"] = status
         ev["lastTry"] = last["r"] if last else None
+        # «Guardar como correcta»: cuando la IA observó la foto (no corresponde / no legible), en cualquier estado del local
+        ev["canForce"] = bool(last and last["r"] in ("nc", "il")) and status != "REVIEW"
+        # «Subir después»: solo fotos obligatorias de la lista (frontis, lugares de preparación, caja)
+        ev["canLater"] = mandatory and bool(n.get("parent"))
+        # atajo «Local en obra» en la nota de «Guardar como correcta» (solo en obra o por inaugurar)
+        ev["enObra"] = bool(getattr(s.X, "obra", False) or getattr(s.X, "inaug", False))
         prompt["evidence"] = ev
+        prompt["canForce"] = ev["canForce"]
+        prompt["canLater"] = ev["canLater"]
         if n.get("item") and n["item"].get("opt"):
             prompt["optional"] = True
     hint = adjunto.POR_NODO.get(n["id"])
@@ -157,8 +167,21 @@ class SimChat:
         processed: Optional[List[str]] = None
         cross: List[str] = []
         try:
+            node_id = getattr(request, "nodeId", None)
+            if node_id and request.photosBase64:
+                # foto pendiente de «Subir después» (se pide al terminar, antes de generar la minuta)
+                target = s.item_node(node_id)
+                info = s.upload(request.photosBase64[:3], request.mode or "subir", getattr(request, "nota", None), node_id)
+                processed = info.get("processedImages")
+                if info["status"] in ("OK", "REVIEW") and target is not None:
+                    last_evidence = self._evidence_info(target, info)
+                err = None
+                if info["status"] in ("NC", "IL") and target is not None:
+                    err = err_message(target["read"], target.get("name") or "", (s.TRIES.get(node_id) or [None])[-1], True)
+                return self._respond(request.evaluationId, s, validation_error=err, last_evidence=last_evidence,
+                                     processed=processed, answered_id=None)
             if before is not None and before["kind"] == "ev" and request.photosBase64:
-                info = s.upload(request.photosBase64[:3], request.mode or "subir")
+                info = s.upload(request.photosBase64[:3], request.mode or "subir", getattr(request, "nota", None))
                 processed = info.get("processedImages")
                 if info["status"] in ("OK", "REVIEW"):
                     last_evidence = self._evidence_info(before, info)
@@ -247,7 +270,19 @@ class SimChat:
             state=json.dumps(s.state, ensure_ascii=False), node=node, validationError=validation_error,
             attachedNodeIds=[k for k, e in s.A.items() if isinstance(e, dict) and e.get("src") == "adjunto"],
             lastEvidence=last_evidence, crossChecks=[], followUps=[], processedImages=processed, notices=notices,
+            pendingMandatory=[_pending_item(s, i) for i in s.pending_later()],
         )
+
+
+def _pending_item(s: Session, node_id: str) -> Dict[str, Any]:
+    """Foto obligatoria dejada con «Subir después», con su último intento (para «Guardar como correcta»)."""
+    n = s.item_node(node_id) or {}
+    tries = s.TRIES.get(node_id) or []
+    last = tries[-1] if tries and isinstance(tries[-1], dict) else None
+    return {"nodeId": node_id, "name": node_id.split("#", 1)[1] if "#" in node_id else node_id, "text": n.get("text") or "",
+            "lastTry": last["r"] if last else None, "canForce": bool(last and last["r"] in ("nc", "il")),
+            "enObra": bool(getattr(s.X, "obra", False) or getattr(s.X, "inaug", False)),
+            "message": err_message(n.get("read") or "photo", n.get("name") or "", last, True) if last else None}
 
 
 # ---- respuestas legibles y propuesta ---------------------------------------------

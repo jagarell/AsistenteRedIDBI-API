@@ -27,6 +27,30 @@ STATE_VERSION = 2
 # Qué lee la IA en las fotos que se muestran como "photo" (no tienen lectura propia en el chat)
 AI_READ_BY_ID = {"E2": "ports", "E2e": "routerlabel"}
 
+ESTADO_LOCAL = {
+    "EN_OPERACION": "el local está en operación: puede verse con gente, desordenado, con poca luz o con equipos tapados",
+    "EN_OBRA": "el local está EN OBRA: puede verse sin terminar, vacío, con equipos cubiertos o sin instalar",
+    "POR_INAUGURAR": "el local está por inaugurar: puede verse con equipos nuevos sin instalar o embalados",
+    "SISTEMA_ANTERIOR": "el local ya funciona con otro sistema: puede verse con equipos antiguos",
+}
+
+
+def place_desc(it: Dict[str, Any], estado: Optional[str]) -> str:
+    """Qué lugar es la foto (para que la IA no rechace fotos buenas por un nombre de área que no conoce)."""
+    t = it.get("t") or ""
+    k = it.get("k") or ""
+    if k.startswith("Frontis"):
+        desc = "el frontis o fachada del local"
+    elif "preparación" in t:
+        desc = f"un lugar de preparación de alimentos o bebidas (cocina, barra, zona caliente o fría, despacho) llamado «{k}»"
+    elif "Zona de atención" in t:
+        desc = f"una zona de atención al público (salón, terraza, mostrador) llamada «{k}»"
+    elif "caja" in t.lower():
+        desc = f"la caja o punto de cobro «{k}»"
+    else:
+        desc = f"el lugar «{k}» del local"
+    return f"{desc}; {ESTADO_LOCAL.get(estado or '', 'puede estar en cualquier estado')}"
+
 
 SI_RE = re.compile(r"^(s[ií]\b|claro|tiene\b|hay\b|a veces|algun|de vez|ocasional|frecuent|seguido|todos|siempre)", re.I)
 NO_RE = re.compile(r"^(no\b|nunca|ningun|jam[aá]s)", re.I)
@@ -154,14 +178,29 @@ class Session:
             self._push({"t": "ans", "id": cur["id"], "val": {"v": "OK", "label": ""}})
         return None
 
+    def _item(self, check: Dict[str, Any], it: Dict[str, Any]) -> Dict[str, Any]:
+        """Una foto de la lista (frontis, lugar de preparación, zona, caja) como nodo de evidencia."""
+        return {"id": f"{check['id']}#{it['k']}", "kind": "ev", "b": check.get("b"), "read": "photo", "name": it["k"], "item": it,
+                "text": f"{it['k']}: {it['t']}. Toma o sube la foto." if it.get("t") else f"{it['k']}: toma o sube la foto.",
+                "optional": bool(it.get("opt")), "def": {"data": {}}, "parent": check["id"],
+                "placeDesc": place_desc(it, getattr(self.X, "estadoV", None))}
+
     def _next_item(self, check: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         for it in check["items"]:
-            iid = f"{check['id']}#{it['k']}"
-            if self.A.get(iid) is None:
-                return {"id": iid, "kind": "ev", "b": check.get("b"), "read": "photo", "name": it["k"], "item": it,
-                        "text": f"{it['k']}: {it['t']}. Toma o sube la foto." if it.get("t") else f"{it['k']}: toma o sube la foto.",
-                        "optional": bool(it.get("opt")), "def": {"data": {}}, "parent": check["id"]}
+            if self.A.get(f"{check['id']}#{it['k']}") is None:
+                return self._item(check, it)
         return None
+
+    def item_node(self, node_id: str) -> Optional[Dict[str, Any]]:
+        """Nodo de una foto de la lista aunque ya no sea la actual (para subir las de «Subir después»)."""
+        cid, _, k = node_id.partition("#")
+        check = next((x for x in self.N if x["id"] == cid and x["kind"] == "check"), None)
+        it = next((i for i in (check or {}).get("items", []) if i["k"] == k), None)
+        return self._item(check, it) if check and it else None
+
+    def pending_later(self) -> List[str]:
+        """Fotos obligatorias dejadas para después: se piden antes de generar la minuta."""
+        return [k for k, v in self.A.items() if isinstance(v, dict) and v.get("v") == "LATER"]
 
     # ---- respuestas --------------------------------------------------------
     def answer(self, text: str) -> None:
@@ -294,6 +333,12 @@ class Session:
     def _answer_evidence(self, n: Dict[str, Any], text: str) -> None:
         id_ = n["id"]
         pending = self.state.get("pending")
+        if text == "@LATER":
+            if not n.get("parent") or n.get("optional"):
+                raise StepError("«Subir después» es solo para las fotos obligatorias del local.")
+            self.state["pending"] = None
+            self._commit(id_, {"v": "LATER", "label": "Subir después"})
+            return
         if text == "@SKIP":
             if not self.evidence_skippable(n):
                 raise StepError("Esta foto es obligatoria: no se puede saltar.")
@@ -329,14 +374,33 @@ class Session:
             clean["_ai"] = pending["extra"]  # datos extra que leyó la IA (proveedor, servidor, dispositivos del escáner...)
         self._commit(id_, {"v": "OK", "data": clean, "label": "", "m": pending.get("m", "subir")})
 
-    def upload(self, images: List[str], mode: str = "subir") -> Dict[str, Any]:
-        """Revisa las fotos del nodo actual. Devuelve {status, ...} y deja el estado listo para responder."""
-        n = self.current()
+    def upload(self, images: List[str], mode: str = "subir", nota: Optional[str] = None,
+               node_id: Optional[str] = None) -> Dict[str, Any]:
+        """Revisa las fotos del nodo actual (o de una foto pendiente de «Subir después», con `node_id`).
+
+        mode "forzar": el usuario confirma que la foto que la IA observó es la correcta («Guardar como correcta»):
+        se guarda sin volver a rechazarla, con su nota opcional (la minuta muestra solo la nota)."""
+        if node_id:
+            if (self.A.get(node_id) or {}).get("v") != "LATER":
+                raise StepError("Esa foto no está pendiente.")
+            n = self.item_node(node_id)
+        else:
+            n = self.current()
         if n is None or n["kind"] != "ev":
             raise StepError("Ahora no se pide ninguna foto.")
         id_ = n["id"]
         base = id_.split("#")[0]
-        read = AI_READ_BY_ID.get(base) or (n["read"] if n["read"] != "photo" else "photo")
+        read = AI_READ_BY_ID.get(base) or (n["read"] if n["read"] != "photo" else ("place" if n.get("placeDesc") else "photo"))
+        desc = n.get("placeDesc") or n.get("name") or ""
+        if mode == "forzar":
+            if self.last_try(id_) not in ("nc", "il"):
+                raise StepError("Solo se puede guardar como correcta una foto que la IA observó.")
+            res = vision.VisionResult(corresponde=True, legible=True) if os.getenv("VISION_MOCK") else vision.analyze(read, desc, images)
+            data = {**(res.data or {}), "_forzada": True, "_nota": (nota or "").strip(), "_iaVio": res.queMuestra}
+            self._commit(id_, {"v": "OK", "data": data, "label": "Guardada como correcta", "m": "subir",
+                               "count": len(images), "forzada": True})
+            return {"nodeId": id_, "count": len(images), "status": "OK", "extracted": data,
+                    "processedImages": res.processedImages}
         if os.getenv("VISION_MOCK"):
             # Solo para pruebas locales sin IA: devuelve la lectura de ejemplo del nodo.
             mock = {"ports": {"puertos": 4, "libres": 2, "ocupados": 2},
@@ -344,7 +408,7 @@ class Session:
                 or dict((n.get("def") or {}).get("data") or {})
             res = vision.VisionResult(corresponde=True, legible=True, data=mock)
         else:
-            res = vision.analyze(read, n.get("name") or "", images)
+            res = vision.analyze(read, desc, images)
         info: Dict[str, Any] = {"nodeId": id_, "count": len(images), "processedImages": res.processedImages}
         if res.corresponde is False:
             self._push({"t": "try", "id": id_, "val": {"r": "nc", "m": mode, "like": res.queMuestra}})
@@ -441,7 +505,7 @@ class Session:
             if n["kind"] == "check":
                 for it in n["items"]:
                     e += 1
-                    if self.A.get(f"{n['id']}#{it['k']}") is not None:
+                    if (self.A.get(f"{n['id']}#{it['k']}") or {}).get("v") not in (None, "LATER"):
                         ea += 1
                 continue
             if is_ev_step(n):

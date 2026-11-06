@@ -320,7 +320,20 @@ def annex(X: Obj, a: Dict[str, Any], N: List[Dict[str, Any]]) -> Dict[str, Any]:
             prn.append({"heading": f"IMP. {p.name} · Ubic.: {p.name if p.prep else 'Caja'}", "cells": cs})
     v = a.get("P49a", {}).get("v") if a.get("P49a") else None
     vids = v if isinstance(v, list) else ([{"d": "Video del local", "u": v}] if v else [])
+    # fotos guardadas como correctas («Guardar como correcta»): la minuta solo muestra la nota que escribió el técnico
+    # (si no escribió nada, la foto se ve como cualquier otra)
+    for cell in gen + rc_all(blocks) + rc_all(prn):
+        for r in cell.get("evidence") or []:
+            e = a.get(r["code"] + ("#" + r["scope"] if r.get("scope") else "")) or {}
+            nota = ((e.get("data") or {}).get("_nota") or "").strip() if e.get("forzada") else ""
+            if nota:
+                cell["lines"].append(f"Nota: {nota}")
+                break
     return {"general": gen, "other": blocks, "printers": prn, "videos": vids}
+
+
+def rc_all(groups: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [c for g in groups for c in (g.get("cells") or [])]
 
 
 def build_document(state_answers: Dict[str, Any], ctx: Dict[str, Any], edits: Optional[Dict[str, Any]] = None,
