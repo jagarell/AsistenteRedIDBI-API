@@ -25,7 +25,7 @@ MOZ_OPTS = [{"v": "TABLET", "l": "Sí, con tablet"}, {"v": "CELULAR", "l": "Sí,
             {"v": "NO", "l": "No, los mozos no toman pedidos con un equipo"}]
 PROV = [
     {"v": "MOVISTAR", "l": "Movistar"}, {"v": "CLARO", "l": "Claro"}, {"v": "ENTEL", "l": "Entel"},
-    {"v": "WIN", "l": "WIN"}, {"v": "BITEL", "l": "Bitel"}, {"v": "OTRO", "l": "Otro (escribir)", "otro": True},
+    {"v": "WIN", "l": "WIN"}, {"v": "BITEL", "l": "Bitel"}, {"v": "STARLINK", "l": "Starlink"}, {"v": "OTRO", "l": "Otro (escribir)", "otro": True},
 ]
 # Preguntas que dependen del cliente: valor prudente cuando el técnico responde «No lo sé ahora»
 PC = {"P12": 1, "P12b": "NO", "P15": "OTRO", "P16": "NS", "P17": "NS", "P09c": "PC", "P47": "NO", "P47a": 0,
@@ -368,10 +368,17 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
                 if a.get("P16") and ask_hist:
                     push(ch("P17", "C", "¿El local tiene caídas de internet?", YN, {"def": "NO"}))
                 ready = bool(a.get("P15")) and (not ask_hist or v("P17") is not None)
+            elif con == "POR_CONTRATAR":
+                # 0.0.16 (C4): aunque el cliente va a contratar, se anota qué tipo de conexión y con qué proveedor (Starlink, otro)
+                push(ch("P14t", "C", "¿Qué tipo de conexión va a contratar?",
+                        [o for o in CAT["CONEX"] if o["v"] not in ("NO_SE", "NO_TIENE", "POR_CONTRATAR")], {"def": "FIBRA"}))
+                if a.get("P14t"):
+                    push(ch("P13", "C", "¿Con qué proveedor va a contratar?", PROV, {"def": "MOVISTAR"}))
+                ready = bool(a.get("P14t")) and bool(a.get("P13"))
             else:
-                ready = con in ("NO_TIENE", "POR_CONTRATAR")
+                ready = con == "NO_TIENE"
     X.con = None if X.simple else con
-    X.conL = lab("P14") if a.get("P14") else ("Internet del local" if X.simple and a.get("P15") else None)
+    X.conL = (("Por contratar · " + lab("P14t")) if a.get("P14t") else lab("P14")) if a.get("P14") else ("Internet del local" if X.simple and a.get("P15") else None)
     X.sinInt = con == "NO_TIENE"
     X.porContratar = con == "POR_CONTRATAR"
     X.hasInt = bool(con) and not X.sinInt and not X.porContratar
