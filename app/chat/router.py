@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from typing import List
 
 from app.chat import adjunto
+from app.chat.catalogo import catalogo
 from app.chat.engine import ChatEngine
 from app.chat.map_model import MapDocument, apply_command, from_topology
 from app.chat.minuta_doc import MinutaDocument, build_minuta_document
@@ -34,6 +35,12 @@ def _is_new(state: str) -> bool:
         return is_v2(json.loads(state))
     except ValueError:
         return False
+
+
+@router.get("/flujo/catalogo")
+def flujo_catalogo() -> Dict[str, Any]:
+    """Todas las preguntas del Chat IA por sección y en orden (Preguntas y reglas › Preguntas y Mapa de nodos)."""
+    return catalogo()
 
 
 @router.post("/start", response_model=ChatResponse)
