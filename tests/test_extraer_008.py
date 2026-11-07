@@ -32,3 +32,9 @@ def test_borrador_pide_conexiones_y_lista_faltantes(monkeypatch):
     assert b["pideConexiones"] and "Frontis del local" not in b["faltan"] and "Speedtest" in b["faltan"]
     b = extraer.borrador(TXT)
     assert b["recomendaciones"] and b["pasos"][0]["p"] == "Cliente" and not b["pideConexiones"]
+
+
+def test_la_orden_no_es_observacion_ni_se_pega_al_local():
+    b = extraer.borrador("Redacta una minuta nueva. El local se llama Sanguchería Don Pepe. La razón social es Inversiones Don Pepe S.A.C.")
+    assert b["datos"]["local"] == "Sanguchería Don Pepe"
+    assert not any("Redacta" in o for o in b["observaciones"])

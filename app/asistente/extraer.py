@@ -75,7 +75,7 @@ def conexiones(texto: str) -> List[Dict[str, str]]:
 def _cmd_split(texto: str) -> List[str]:
     """Quita la orden («Redacta una minuta nueva.») y deja el contexto."""
     ss = sentences(texto)
-    return [s for s in ss if not re.match(r"^\s*(redact|gener|cre[ae]|arm[ae]|haz|hacer|elabor)\w*\b[^.]*\bminuta\b[^.]*$", s, re.I)]
+    return [s for s in ss if not re.match(r"^\s*(redact|gener|cre[ae]|arm[ae]|haz|hacer|elabor)\w*\b[^.]*\bminuta\b[^.]*\.?$", s, re.I)]
 
 
 def datos(texto: str) -> Dict[str, Any]:
