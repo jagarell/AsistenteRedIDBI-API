@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.asistente import aprendizaje, plan, soporte
+from app.asistente import aprendizaje, extraer, plan, soporte
 from app.asistente.texto import es_criterio
 
 router = APIRouter(tags=["Asistente IA"])
@@ -120,6 +120,18 @@ def conocimiento_fichas(req: FichasRequest) -> Dict[str, Any]:
     _solo_admin(req.rol)
     fs = aprendizaje.fichas(req.casos, req.admin, req.empresa, req.inicio)
     return {"fichas": fs, "pdfBase64": base64.b64encode(aprendizaje.pdf(fs)).decode()}
+
+
+# ---------- «Redacta una minuta nueva…» ----------
+class ExtraerRequest(BaseModel):
+    texto: str
+    adjuntos: List[str] = Field(default_factory=list, description="tipos de evidencia ya adjuntados (Frontis del local, Speedtest…)")
+
+
+@router.post("/asistente/extraer")
+def asistente_extraer(req: ExtraerRequest) -> Dict[str, Any]:
+    """Borrador de minuta a partir del texto del técnico: datos, conexiones de red, contenido y evidencias que faltan."""
+    return extraer.borrador(req.texto, req.adjuntos)
 
 
 # ---------- mensaje libre al Asistente IA ----------
