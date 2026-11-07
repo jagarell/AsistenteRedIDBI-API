@@ -71,6 +71,9 @@ def sections(X: Obj, R: Obj, a: Dict[str, Any], d: Dict[str, Any], validada_por:
     prep_txt = ", ".join(X.prep) or (", ".join(X.prepRef) + " (solo referencia, sin impresora)" if X.prepRef else ("No aplica" if X.simple else ""))
     neg = [_row("Áreas de preparación", prep_txt), _row("Canales y zonas de atención", zonas_txt), _row("Cantidad de cajas", str(X.cajas)),
            _row("Comandas en caja", a["P12b"]["label"] if a.get("P12b") else ("No aplica (retail)" if X.rub == "RETAIL" else ""))]
+    if a.get("P09c"):
+        # 0.0.15: con qué equipo toman pedidos los mozos (tablet, celular, iMin móvil, otro o por confirmar)
+        neg.append(_row("Mozos toman pedidos con", a["P09c"].get("label") or "", ask="por confirmar con el cliente" if a["P09c"].get("pc52") else ""))
     sp = R.sp
     na = "No aplica" if (X.sinInt or X.porContratar) else ""
     RT = X.router or {}
@@ -329,6 +332,14 @@ def annex(X: Obj, a: Dict[str, Any], N: List[Dict[str, Any]]) -> Dict[str, Any]:
             if nota:
                 cell["lines"].append(f"Nota: {nota}")
                 break
+        # 0.0.15: la descripción que el técnico escribió de la foto va debajo de la foto
+        vistos: List[str] = []
+        for r in cell.get("evidence") or []:
+            e = a.get(r["code"] + ("#" + r["scope"] if r.get("scope") else "")) or {}
+            d = str(e.get("desc") or "").strip()
+            if d and d not in vistos:
+                vistos.append(d)
+                cell["lines"].append(f"Descripción: {d}")
     return {"general": gen, "other": blocks, "printers": prn, "videos": vids}
 
 
@@ -358,8 +369,8 @@ def build_document(state_answers: Dict[str, Any], ctx: Dict[str, Any], edits: Op
     m = build_map(X)
     otros = otros_equipos(m)
     rules = rules_table(X, R, a)
-    recs = ed.get("tobe") or [{"t": i.t, "d": i.d} for i in R.it if i.tipo != "AVISO"]
-    pasos = list(a["P52a"]["v"] if a.get("P52a") else gen_pasos(X, R, a))
+    recs = (ed.get("tobe") or [{"t": i.t, "d": i.d} for i in R.it if i.tipo != "AVISO"]) + list(edits.get("recsExtra") or [])
+    pasos = list(a["P52a"]["v"] if a.get("P52a") else gen_pasos(X, R, a)) + list(edits.get("pasosExtra") or [])
     if any(i.id == "R_ROUTER_ENC" for i in R.it) and not any(p["t"] == SEG45 for p in pasos):
         pasos.append({"p": "ID", "t": SEG45})
     pr = [p for p in X.printers or [] if p.con]
@@ -486,7 +497,7 @@ def build_document(state_answers: Dict[str, Any], ctx: Dict[str, Any], edits: Op
                 if not it.get("opt") and not (a.get(f"EV#{it['k']}") and a[f"EV#{it['k']}"].get("v") == "OK"):
                     missing.append(it["k"])
     png = render_print_png(m, map_doc, map_images or {})
-    return {
+    out = {
         "title": "MINUTA TÉCNICA DE RED", "subtitle": name, "date": fecha,
         "header": f"Minuta técnica · {name} · {fecha}",
         "intro": f"Minuta generada por el Asistente Virtual de Red a partir de las respuestas del técnico y de las evidencias fotográficas de la visita del {fecha}.",
@@ -496,3 +507,8 @@ def build_document(state_answers: Dict[str, Any], ctx: Dict[str, Any], edits: Op
         "missingMandatory": missing,
         "scores": {"g": S.g, "cards": [{"k": c.k, "v": c.v} for c in S.cards]},
     }
+    # 0.0.7 · Parte 6: cambios pedidos al Asistente IA sobre los datos de la minuta (tablas, impresoras, equipos, anexo)
+    if edits.get("doc"):
+        from app.asistente.edicion import aplicar as aplicar_ediciones
+        aplicar_ediciones(out, edits["doc"])
+    return out

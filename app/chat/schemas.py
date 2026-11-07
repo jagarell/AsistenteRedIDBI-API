@@ -52,6 +52,16 @@ class ChatAnswerRequest(BaseModel):
     nota: Optional[str] = None
     # Foto pendiente de «Subir después» que se sube al final (EV#Calientes); si no viene, es el nodo actual.
     nodeId: Optional[str] = None
+    # 0.0.15: descripción opcional de la foto («¿Qué muestra esta foto?»): sale debajo de la foto en la minuta y la IA la usa.
+    descripcion: Optional[str] = None
+
+
+class ChatEvidenceNoteRequest(BaseModel):
+    """Agregar, editar o borrar (descripcion vacía) la descripción de una evidencia ya subida."""
+    evaluationId: str
+    state: str
+    nodeId: str
+    descripcion: Optional[str] = ""
 
 
 class ChatAmendRequest(BaseModel):
@@ -171,3 +181,5 @@ class ChatResponse(BaseModel):
     notices: List[Dict[str, Any]] = Field(default_factory=list)
     # Fotos obligatorias dejadas con «Subir después» (la minuta no se genera mientras haya alguna).
     pendingMandatory: List[Dict[str, Any]] = Field(default_factory=list)
+    # 0.0.15: descripción de cada evidencia, por nodeId (EV#Frontis del local, E1, E5a#Cocina…)
+    evidenceNotes: Dict[str, str] = Field(default_factory=dict)

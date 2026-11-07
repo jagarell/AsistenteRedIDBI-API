@@ -1,0 +1,7 @@
+En areas de preparación seria donde dice panaderia colocar Panaderia Mesón/ Panaderia Amat.
+En canales y zonas de atención seria. Recojo:Barra de Makis ,Barra Principal.Mesa: Barra de Makis,Barra Principal,Zona Vip.....
+En tipo de conexión sería: Internet Satelital por implementar.
+Proveedor: Starlink.
+Donde irá el router: en la sala de data center cerca al área de caja.
+En equipo es PC conectada por cable de red (a implementar)
+En el cuadro de impresoras seria: en conexión los que dice no tiene colocar tiene punto de red - Habilitado.Y solo para caja colocar No tiene punto de red - No Habilitado.donde dice Imp.Panaderia renombrarlo a IMP. Panaderia Mesón y agregar una impresora nueva que diga IMP. Panaderia AMAT y en ubicacion colocar Amat por definir.Marca y modelo:sin dato. IP : sin dato . Conexión: No tiene punto de red - No habilitado. En equipos varios coloca la pc de caja esta por implementar ,el switch esta por implementar.Wifi y camas esta por implementar.Equipos sin tomas cerca: imp.caja no tiene aun tomas de energia,imp.panaderia en Amat aun esta por confirmar por el cliente y para imp.calientes esta por implementar el punto de red cerca a un punto de energia.En evidencias .Quita la imagen del gabinete y deja la sel switch.en impresora panaderia renombralo a Imp.Panaderia Mesón y en las 3 fotos que aparece de la impresora quitar la de la hoja de impresion.

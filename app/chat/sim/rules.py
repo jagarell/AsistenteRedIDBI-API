@@ -29,7 +29,7 @@ def bw_need(X: Obj, a: Dict[str, Any]) -> Obj:
     if X.decision == "RASPBERRY" and not any(c.rasp or c.adq == "RASPBERRY" for c in X.cajasInfo or []):
         add(1, 5, "Raspberry")
     p09c = a.get("P09c")
-    if X.rub and X.rub != "RETAIL" and (X.rub not in MOZOS or (p09c and p09c.get("v") == "SI")):
+    if X.rub and X.rub != "RETAIL" and (not X.mozosQ or (p09c and p09c.get("v") != "NO")):
         add(len([z for z in X.zonas if z["canal"] == "Mesa"]), 10, "tablet o celular de mozo por WiFi")
     zonas = len(uniq([z["z"] for z in X.zonas]))
     return Obj(min=total[0], det=det, zonas=zonas, rec=150 * zonas)
@@ -176,6 +176,13 @@ def _evaluate_base(X: Obj, a: Dict[str, Any], ctx: Dict[str, Any]) -> Obj:
 
     if X.sunmi:
         add({"id": "A_SUNMI", "tipo": "REC", "t": "Sunmi con chip", "d": "La comanda sale solo en caja.", "eq": "Sunmi con chip"})
+    p09c = a.get("P09c") or {}
+    if X.mozosQ and (p09c.get("v") == "IMIN_MOVIL" or p09c.get("pc52")):
+        add({"id": "R_IMIN_MOVIL", "tipo": "REC", "t": "iMin móvil para los mozos",
+             "d": ("Los mozos usarán iMin móvil: toma el pedido e imprime en el mismo equipo. Debe tener buena señal WiFi en las zonas de atención."
+                   if p09c.get("v") == "IMIN_MOVIL" else
+                   "Aún no se define con qué equipo tomarán pedidos los mozos. Sugerir iMin móvil: toma el pedido e imprime en el mismo equipo. Se cotiza con Desarrollo de Negocios."),
+             "eq": "iMin móvil"})
     if X.sinInt:
         add({"id": "SIN_INT", "tipo": "OBS", "t": "Sin internet",
              "d": "Conectividad 0 %. Por inaugurar: el proveedor de internet ya debe estar contratado y el router instalado antes del inicio." if X.inaug else "Conectividad 0 %."})

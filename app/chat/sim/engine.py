@@ -95,6 +95,8 @@ def norm_pc(id_: str, val: Dict[str, Any], unit: str = "") -> Dict[str, Any]:
         ok = k is not None and TOPE[base][0] <= k <= TOPE[base][1]
         label = f"{k} {unit}".strip() if ok and re.fullmatch(r"\d+", t) else t
         return {"v": k if ok else PC[base], "label": label, "pc52": not ok}
+    if base == "P09c":
+        return {"v": "NO", "label": t} if NO_RE.match(t) else {"v": "OTRO", "label": t}
     if base == "P22b":
         m = "RASPBERRY" if re.search(r"rasp", t, re.I) else "LAPTOP" if re.search(r"laptop|port[aá]til", t, re.I) \
             else "PC" if re.search(r"\bpc\b|computador", t, re.I) else None
@@ -133,6 +135,16 @@ class Session:
                 self.A[e["id"]] = e["val"]
             elif e["t"] == "try":
                 self.TRIES.setdefault(e["id"], []).append(e["val"])
+        # 0.0.15: descripción de cada evidencia («¿Qué muestra esta foto?»). Se guarda aparte, así sigue aunque se cambie la foto.
+        descs: Dict[str, str] = {}
+        for e in self.state["order"]:
+            if e["t"] == "desc":
+                descs[e["id"]] = str(e.get("val") or "").strip()
+        for k, t in descs.items():
+            if isinstance(self.A.get(k), dict):
+                ans = {kk: vv for kk, vv in self.A[k].items() if kk != "desc"}
+                self.A[k] = {**ans, "desc": t} if t else ans
+        self.DESCS = {k: t for k, t in descs.items() if t}
         N, X = build(self.A, self.state["ctx"])
         self.N, self.X = N, X
         self._R: Optional[Obj] = None
@@ -144,8 +156,71 @@ class Session:
         return self._R
 
     def _push(self, entry: Dict[str, Any]) -> None:
+        before = {n["id"]: n.get("text", "") for n in self.N} if self.state.get("edit") else {}
         self.state["order"].append(entry)
         self.replay()
+        ed = self.state.get("edit")
+        if ed and entry.get("t") == "ans" and entry.get("id") == ed.get("id"):
+            # Se respondió la pregunta que se estaba editando: solo se borran las respuestas que dependían de ella.
+            self.state.pop("edit", None)
+            self.current()  # cierra la lista de fotos si ya está completa
+            self.state["editReset"] = self.prune(before)
+
+    # ---- edición: conservar lo que no depende ---------------------------------
+    def _valid_ids(self, completo: bool = False) -> set:
+        N = complete_nodes(self.A, self.state["ctx"]) if completo else self.N
+        ids = {n["id"] for n in N}
+        for n in N:
+            if n["kind"] == "check":
+                ids.update(f"{n['id']}#{it['k']}" for it in n.get("items", []))
+        return ids
+
+    @staticmethod
+    def _choice_ok(n: Dict[str, Any], val: Any) -> bool:
+        if not isinstance(val, dict) or val.get("pc52"):
+            return True
+        v = val.get("v")
+        if any(o["v"] == v or str(o["v"]) == str(v) for o in n.get("opts", [])):
+            return True
+        otro = next((o for o in n.get("opts", []) if o.get("otro")), None)
+        # con «Otro (escribir)» se guarda "OTRO" o el número escrito (cajas, Mbps…)
+        return otro is not None and (v == "OTRO" or (isinstance(v, (int, float)) and not isinstance(v, bool)))
+
+    def prune(self, before: Optional[Dict[str, str]] = None) -> List[str]:
+        """Borra las respuestas cuya pregunta ya no existe o cuya opción ya no se ofrece
+        (dependían de la respuesta editada). Devuelve el texto de esas preguntas."""
+        texts: Dict[str, str] = {**{n["id"]: n.get("text", "") for n in self.N}, **(before or {})}
+        reset: List[str] = []
+        for _ in range(20):
+            # con lo que falta respondido con lo sugerido: lo que aún no se preguntó (por ejemplo, la impresora de un área nueva)
+            # no esconde las respuestas que vienen después
+            full = complete_nodes(self.A, self.state["ctx"])
+            valid = self._valid_ids(completo=True)
+            byid = {n["id"]: n for n in full}
+            bad = set()
+            for e in self.state["order"]:
+                if e["t"] != "ans":
+                    continue
+                i = e["id"]
+                if i not in valid:
+                    bad.add(i)
+                    continue
+                n = byid.get(i)
+                if n and n["kind"] == "choice" and not self._choice_ok(n, self.A.get(i)):
+                    bad.add(i)
+                elif n and n["id"] == "P33a" and isinstance((self.A.get(i) or {}).get("v"), list) \
+                        and any(x not in n.get("opts", []) for x in self.A[i]["v"]):
+                    bad.add(i)
+            if not bad:
+                break
+            for i in bad:
+                t = texts.get(i) or ("Foto: " + i.split("#", 1)[1] if "#" in i else "")
+                if t and t not in reset:
+                    reset.append(t)
+            self.state["order"] = [e for e in self.state["order"] if e["id"] not in bad]
+            self.replay()
+            texts.update({n["id"]: n.get("text", "") for n in self.N})
+        return reset
 
     def _commit(self, id_: str, val: Dict[str, Any]) -> None:
         self.state["pending"] = None
@@ -197,6 +272,22 @@ class Session:
         check = next((x for x in self.N if x["id"] == cid and x["kind"] == "check"), None)
         it = next((i for i in (check or {}).get("items", []) if i["k"] == k), None)
         return self._item(check, it) if check and it else None
+
+    def set_desc(self, node_id: str, text: Optional[str]) -> None:
+        """Agrega, cambia o borra (texto vacío) la descripción de una evidencia ya subida o la que se está subiendo."""
+        valid = self._valid_ids()
+        if node_id not in valid:
+            raise StepError("No encontré esa evidencia.")
+        n = next((x for x in self.N if x["id"] == node_id), None)
+        if n is not None and n["kind"] not in ("ev", "check"):
+            raise StepError("Solo las evidencias llevan descripción.")
+        t = (text or "").strip()[:500]
+        if t == (self.DESCS.get(node_id) or ""):
+            return
+        self._push({"t": "desc", "id": node_id, "val": t})
+
+    def evidence_notes(self) -> Dict[str, str]:
+        return dict(self.DESCS)
 
     def pending_later(self) -> List[str]:
         """Fotos obligatorias dejadas para después: se piden antes de generar la minuta."""
@@ -257,6 +348,9 @@ class Session:
             arr = [str(x).strip() for x in arr if str(x).strip()]
             if n.get("min") and not arr:
                 raise StepError("Elige al menos una opción.")
+            if n["id"] == "P33a" and any(x not in n.get("opts", []) for x in arr):
+                # «Equipos sin tomas cerca» guardaba textos como «Si» como si fueran equipos (minuta AMAT ROOFTOP)
+                raise StepError("Elige los equipos de la lista o toca «Ninguno».")
             return {"v": arr, "label": ", ".join(arr) if arr else "Ninguno"}
         if kind == "text":
             if n["id"] in POR_CONFIRMAR and (text in ("No lo tengo ahora", "No está en el local") or NO_SE.match(text)):
@@ -375,7 +469,7 @@ class Session:
         self._commit(id_, {"v": "OK", "data": clean, "label": "", "m": pending.get("m", "subir")})
 
     def upload(self, images: List[str], mode: str = "subir", nota: Optional[str] = None,
-               node_id: Optional[str] = None) -> Dict[str, Any]:
+               node_id: Optional[str] = None, descripcion: Optional[str] = None) -> Dict[str, Any]:
         """Revisa las fotos del nodo actual (o de una foto pendiente de «Subir después», con `node_id`).
 
         mode "forzar": el usuario confirma que la foto que la IA observó es la correcta («Guardar como correcta»):
@@ -392,6 +486,13 @@ class Session:
         base = id_.split("#")[0]
         read = AI_READ_BY_ID.get(base) or (n["read"] if n["read"] != "photo" else ("place" if n.get("placeDesc") else "photo"))
         desc = n.get("placeDesc") or n.get("name") or ""
+        # lo que el técnico escribió de la foto ayuda a la IA a leerla (se verifica igual con la imagen)
+        nueva = (descripcion or "").strip()[:500]
+        if nueva and nueva != self.DESCS.get(id_):
+            self._push({"t": "desc", "id": id_, "val": nueva})
+        tec = nueva or self.DESCS.get(id_, "")
+        if tec:
+            desc = f"{desc}. El técnico describe la foto así: «{tec[:300]}»" if desc else f"El técnico describe la foto así: «{tec[:300]}»"
         if mode == "forzar":
             if self.last_try(id_) not in ("nc", "il"):
                 raise StepError("Solo se puede guardar como correcta una foto que la IA observó.")
@@ -466,12 +567,25 @@ class Session:
         self.replay()
 
     def reopen(self, node_id: str) -> None:
-        """Modo edición (evaluación terminada): solo esa pregunta se vuelve a hacer."""
+        """Editar una respuesta (en curso o terminada): solo esa pregunta se vuelve a hacer, con la respuesta
+        anterior ya marcada. Las demás respuestas se conservan; al responder se borran solo las que dependían de ella."""
         keep = []
         prefix = node_id + "#"
+        prev = self.A.get(node_id)
+        if prev is not None and node_id not in ("EV", "EVQ"):
+            self.state["edit"] = {"id": node_id, "prev": prev}
+        else:
+            self.state.pop("edit", None)
+        self.state.pop("editReset", None)
+        # una foto de una lista (EV#Frontis del local…): también se reabre la lista para que la vuelva a pedir
+        parent = node_id.split("#")[0] if "#" in node_id and any(n["id"] == node_id.split("#")[0] and n["kind"] == "check"
+                                                                   for n in self.N) else None
         for e in self.state["order"]:
             eid = str(e["id"])
-            if eid == node_id or (node_id in ("EV", "EVQ") and eid.startswith(prefix)):
+            if e["t"] == "desc":
+                keep.append(e)  # la descripción de la foto se conserva aunque se cambie la foto
+                continue
+            if eid == node_id or (node_id in ("EV", "EVQ") and eid.startswith(prefix)) or (parent and eid == parent and e["t"] == "ans"):
                 continue
             keep.append(e)
         if len(keep) == len(self.state["order"]):
@@ -570,6 +684,23 @@ def _num(v: Any) -> Any:
 
 def estimate(a: Dict[str, Any], ctx: Dict[str, Any]) -> Dict[str, int]:
     """Total estimado de preguntas y evidencias: completa lo que falta con las respuestas sugeridas."""
+    N = complete_nodes(a, ctx)
+    q = e = 0
+    for n in N:
+        if n["kind"] in ("alert", "fin"):
+            continue
+        if n["kind"] == "check":
+            e += len(n["items"])
+        elif is_ev_step(n):
+            e += 1
+        else:
+            q += 1
+    return {"q": q, "e": e}
+
+
+def complete_nodes(a: Dict[str, Any], ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Todos los nodos del flujo si lo que falta se respondiera con lo sugerido (no guarda nada).
+    Sirve para el total estimado y, al editar, para saber qué respuestas siguen teniendo pregunta."""
     a2 = copy.deepcopy(a)
     N: List[Dict[str, Any]] = []
     for _ in range(400):
@@ -597,14 +728,4 @@ def estimate(a: Dict[str, Any], ctx: Dict[str, Any]) -> Dict[str, int]:
         else:
             v = {"v": "" if d is None else d, "label": "" if d is None else str(d)}
         a2[n["id"]] = v
-    q = e = 0
-    for n in N:
-        if n["kind"] in ("alert", "fin"):
-            continue
-        if n["kind"] == "check":
-            e += len(n["items"])
-        elif is_ev_step(n):
-            e += 1
-        else:
-            q += 1
-    return {"q": q, "e": e}
+    return N

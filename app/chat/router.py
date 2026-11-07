@@ -17,7 +17,8 @@ from app.chat.engine import ChatEngine
 from app.chat.map_model import MapDocument, apply_command, from_topology
 from app.chat.minuta_doc import MinutaDocument, build_minuta_document
 from app.chat.topology import build_state_topology
-from app.chat.schemas import ChatAmendRequest, ChatAnswerRequest, ChatEditRequest, ChatResponse, ChatStartRequest
+from app.chat.schemas import (ChatAmendRequest, ChatAnswerRequest, ChatEditRequest, ChatEvidenceNoteRequest, ChatResponse,
+                              ChatStartRequest)
 from app.chat.sim import flow
 from app.chat.sim.engine import Session, is_v2
 from app.chat.sim.map import build_map, map_height, to_document
@@ -56,6 +57,12 @@ def answer_chat(request: ChatAnswerRequest) -> ChatResponse:
 @router.post("/amend", response_model=ChatResponse)
 def amend_chat(request: ChatAmendRequest) -> ChatResponse:
     return _sim.amend(request) if _is_new(request.state) else _engine.amend(request)
+
+
+@router.post("/evidence-note", response_model=ChatResponse)
+def evidence_note(request: ChatEvidenceNoteRequest) -> ChatResponse:
+    """0.0.15: agregar, editar o borrar la descripción de una evidencia (desde el chat o la lista de evidencias)."""
+    return _sim.evidence_note(request)
 
 
 @router.post("/edit", response_model=ChatResponse)

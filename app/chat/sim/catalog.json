@@ -404,6 +404,15 @@
    "l": "Internet con chip"
   },
   {
+   "v": "SATELITAL",
+   "l": "Internet satelital"
+  },
+  {
+   "v": "OTRO",
+   "l": "Otro (escribir)",
+   "otro": true
+  },
+  {
    "v": "NO_SE",
    "l": "No sé"
   },

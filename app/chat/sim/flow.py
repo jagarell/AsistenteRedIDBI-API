@@ -19,16 +19,20 @@ CC_RE = re.compile(
 )
 PERFIL: Dict[str, Dict[str, Any]] = CAT["PERFIL"]
 YN = [{"v": "SI", "l": "Sí"}, {"v": "NO", "l": "No"}]
+# P09c: equipo con el que los mozos toman pedidos (0.0.15). «Aún por confirmar» y «Otro (escribir)» los agrega pc_opts.
+MOZ_OPTS = [{"v": "TABLET", "l": "Sí, con tablet"}, {"v": "CELULAR", "l": "Sí, con su celular"},
+            {"v": "IMIN_MOVIL", "l": "Sí, con iMin móvil (toma el pedido e imprime)"},
+            {"v": "NO", "l": "No, los mozos no toman pedidos con un equipo"}]
 PROV = [
     {"v": "MOVISTAR", "l": "Movistar"}, {"v": "CLARO", "l": "Claro"}, {"v": "ENTEL", "l": "Entel"},
-    {"v": "WIN", "l": "WIN"}, {"v": "BITEL", "l": "Bitel"}, {"v": "OTRO", "l": "Otro (escribir)", "otro": True},
+    {"v": "WIN", "l": "WIN"}, {"v": "BITEL", "l": "Bitel"}, {"v": "STARLINK", "l": "Starlink"}, {"v": "OTRO", "l": "Otro (escribir)", "otro": True},
 ]
 # Preguntas que dependen del cliente: valor prudente cuando el técnico responde «No lo sé ahora»
-PC = {"P12": 1, "P12b": "NO", "P15": "OTRO", "P16": "NS", "P17": "NS", "P09c": "SI", "P47": "NO", "P47a": 0,
+PC = {"P12": 1, "P12b": "NO", "P15": "OTRO", "P16": "NS", "P17": "NS", "P09c": "PC", "P47": "NO", "P47a": 0,
       "P22g": "SI", "P22a": "NO", "P22b": "PEND", "P28h": "NO"}
 TEMA = {"P12": "el número de cajas", "P12b": "si saldrán comandas en caja", "P15": "la velocidad del plan de internet",
         "P16": "si tiene internet de respaldo", "P17": "si el local tiene caídas de internet",
-        "P09c": "si los mozos tomarán pedidos con tablet o celular", "P47": "si se conectarán cámaras a la red",
+        "P09c": "con qué equipo tomarán pedidos los mozos (tablet, celular o iMin móvil)", "P47": "si se conectarán cámaras a la red",
         "P47a": "cuántas cámaras irán conectadas a la red", "P22g": "si el equipo de caja se queda en el local",
         "P22a": "si ya cuenta con un Raspberry", "P22b": "qué equipo adquirirá para el sistema de impresiones",
         "P28h": "si ya tiene la impresora"}
@@ -39,7 +43,8 @@ def pc_opts(id_: str, opts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     out = [dict(o, num=False, l="Otro (escribir)") if o.get("otro") else o for o in opts]
     if not any(o.get("otro") for o in out):
         out.append({"v": "OTRO", "l": "Otro (escribir)", "otro": True})
-    out.append({"v": "NS52", "l": "Aún no lo decide" if id_ == "P22b" else "No lo sé ahora"})
+    out.append({"v": "NS52", "l": "Aún no lo decide" if id_ == "P22b" else
+                "Aún por confirmar (sugerir iMin móvil)" if id_ == "P09c" else "No lo sé ahora"})
     return out
 
 
@@ -200,12 +205,14 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
     X.rubL = lab("P09")
     P = PERFIL.get(rub) or PERFIL["OTRO"]
     X.P = P
-    X.simple = rub in ("RETAIL", "OTRO")
+    # «Otro» rubro: flujo completo, como un restaurante o una discoteca, pero sin opciones marcadas de antemano.
+    X.simple = rub == "RETAIL"
+    X.otroRub = rub == "OTRO"
     est = X.estadoV
     X.obra = est == "EN_OBRA"
     X.inaug = est == "POR_INAUGURAR"
     X.anterior = est == "SISTEMA_ANTERIOR"
-    X.mozosQ = rub in CAT["MOZOS"]
+    X.mozosQ = rub in CAT["MOZOS"] or rub == "OTRO"
     # P09c (mozos con tablet) se pregunta al final, justo antes del WiFi por zona
     moz_ready = True
     prep: List[str] = []
@@ -227,7 +234,8 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
             push({"id": "P11e", "b": "B", "kind": "multi",
                   "text": (f"¿Qué áreas de preparación tiene el local? Ya marqué las más comunes en {un}; puedes quitarlas o agregar otras."
                            if pre else "¿Qué áreas de preparación tiene el local? Márcalas o escríbelas con Otro."),
-                  "opts": uniq([*pre, *CAT["PREP_ALL"]]), "sel": pre, "def": pre if pre else ["Cocina"], "min": 1})
+                  "opts": uniq([*pre, *CAT["PREP_ALL"]]), "sel": pre, "def": pre if pre else ["Cocina"],
+                  **({"none": "Ninguna: no prepara productos", "min": 0} if X.otroRub else {"min": 1})})
             prep = v("P11e") or []
     X.prep = prep
     X.prepRef = X.prepRef or []
@@ -360,10 +368,17 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
                 if a.get("P16") and ask_hist:
                     push(ch("P17", "C", "¿El local tiene caídas de internet?", YN, {"def": "NO"}))
                 ready = bool(a.get("P15")) and (not ask_hist or v("P17") is not None)
+            elif con == "POR_CONTRATAR":
+                # 0.0.16 (C4): aunque el cliente va a contratar, se anota qué tipo de conexión y con qué proveedor (Starlink, otro)
+                push(ch("P14t", "C", "¿Qué tipo de conexión va a contratar?",
+                        [o for o in CAT["CONEX"] if o["v"] not in ("NO_SE", "NO_TIENE", "POR_CONTRATAR")], {"def": "FIBRA"}))
+                if a.get("P14t"):
+                    push(ch("P13", "C", "¿Con qué proveedor va a contratar?", PROV, {"def": "MOVISTAR"}))
+                ready = bool(a.get("P14t")) and bool(a.get("P13"))
             else:
-                ready = con in ("NO_TIENE", "POR_CONTRATAR")
+                ready = con == "NO_TIENE"
     X.con = None if X.simple else con
-    X.conL = lab("P14") if a.get("P14") else ("Internet del local" if X.simple and a.get("P15") else None)
+    X.conL = (("Por contratar · " + lab("P14t")) if a.get("P14t") else lab("P14")) if a.get("P14") else ("Internet del local" if X.simple and a.get("P15") else None)
     X.sinInt = con == "NO_TIENE"
     X.porContratar = con == "POR_CONTRATAR"
     X.hasInt = bool(con) and not X.sinInt and not X.porContratar
@@ -795,8 +810,8 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
     # H · WiFi y cámaras
     moz_ask = printers_done and X.mozosQ and not X.simple and not X.obra
     if moz_ask:
-        push(ch("P09c", "H", "¿Hay mozos que toman pedidos con tablet o celular?", YN,
-                {"def": "NO" if rub in CAT["MOZOS_RARO"] else "SI"}))
+        push(ch("P09c", "H", "¿Los mozos toman pedidos con algún equipo? Puede ser tablet, su celular o un iMin móvil.", MOZ_OPTS,
+                {"def": "NO" if rub in CAT["MOZOS_RARO"] else "TABLET"}))
     moz_ok = (not moz_ask) or bool(a.get("P09c"))
     X.wifiSkip = X.simple or X.obra or (X.mozosQ and v("P09c") == "NO")
     all_z = uniq([*[z["z"] for z in zonas], *prep])
@@ -809,7 +824,7 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
             wifi_done = True
         elif X.wifiSkip:
             push({"id": "I_NOWIFI", "kind": "alert", "tone": "info", "tag": "PERFIL",
-                  "text": "Local en obra: no se revisa el WiFi por zona." if X.obra else "Sin mozos con tablet: no se revisa el WiFi por zona (perfil del rubro)."})
+                  "text": "Local en obra: no se revisa el WiFi por zona." if X.obra else "Los mozos no toman pedidos con un equipo: no se revisa el WiFi por zona."})
             wifi_done = True
         elif all_z:
             push({"id": "P46", "b": "H", "kind": "multi", "text": "¿Hay zonas o lugares de preparación sin señal WiFi?",

@@ -57,6 +57,40 @@ def _router_defaults(s: Session) -> Dict[str, Any]:
             "sn": label.get("sn") or "", "puertos": total, "libres": libres, "ocupados": ocup}
 
 
+def _corto(t: str) -> str:
+    t = str(t)
+    return t if len(t) <= 70 else __import__("re").sub(r"\s+\S*$", "", t[:68]) + "…"
+
+
+def _prev_answer(s: Session, n: Dict[str, Any], prompt: Dict[str, Any]) -> None:
+    """Al editar una respuesta, la pregunta vuelve con lo que ya se había respondido marcado
+    (en selección múltiple se ven las opciones elegidas, también las escritas con «Otro»)."""
+    ed = s.state.get("edit") or {}
+    if ed.get("id") != n["id"] or not isinstance(ed.get("prev"), dict):
+        return
+    prev = ed["prev"]
+    v = prev.get("v")
+    prompt["editing"] = True
+    prompt["currentLabel"] = str(prev.get("label") or "")
+    kind = n["kind"]
+    if kind == "multi" and isinstance(v, list):
+        prompt["selected"] = list(v)
+        known = {o["value"] for o in prompt.get("options", [])}
+        prompt["options"] = prompt.get("options", []) + [{"value": x, "label": x} for x in v if x not in known]
+    elif kind == "choice":
+        opt = next((o for o in n.get("opts", []) if str(o["v"]) == str(v) and not o.get("otro")), None)
+        if opt is not None:
+            prompt["currentValue"] = str(v)
+        elif isinstance(v, (int, float)) and not isinstance(v, bool):
+            prompt["currentValue"] = "OTRO:" + str(v)  # número escrito con «Otro» (cajas, Mbps…)
+        else:
+            prompt["currentValue"] = "OTRO:" + str(prev.get("label") or v)
+    elif kind in ("text", "longtext", "date"):
+        prompt["defaultValue"] = str(v if v not in (None, "") else prev.get("label") or "")
+    elif kind in ("rcard", "wifi", "links", "pasos") and v is not None:
+        prompt["value"] = v
+
+
 def node_prompt(s: Session, n: Dict[str, Any]) -> Dict[str, Any]:
     kind = n["kind"]
     b = n.get("b") or ""
@@ -145,6 +179,7 @@ def node_prompt(s: Session, n: Dict[str, Any]) -> Dict[str, Any]:
     hint = adjunto.POR_NODO.get(n["id"])
     if hint:
         prompt["attachHint"] = hint
+    _prev_answer(s, n, prompt)
     return prompt
 
 
@@ -171,7 +206,8 @@ class SimChat:
             if node_id and request.photosBase64:
                 # foto pendiente de «Subir después» (se pide al terminar, antes de generar la minuta)
                 target = s.item_node(node_id)
-                info = s.upload(request.photosBase64[:3], request.mode or "subir", getattr(request, "nota", None), node_id)
+                info = s.upload(request.photosBase64[:3], request.mode or "subir", getattr(request, "nota", None), node_id,
+                                getattr(request, "descripcion", None))
                 processed = info.get("processedImages")
                 if info["status"] in ("OK", "REVIEW") and target is not None:
                     last_evidence = self._evidence_info(target, info)
@@ -181,7 +217,8 @@ class SimChat:
                 return self._respond(request.evaluationId, s, validation_error=err, last_evidence=last_evidence,
                                      processed=processed, answered_id=None)
             if before is not None and before["kind"] == "ev" and request.photosBase64:
-                info = s.upload(request.photosBase64[:3], request.mode or "subir", getattr(request, "nota", None))
+                info = s.upload(request.photosBase64[:3], request.mode or "subir", getattr(request, "nota", None),
+                                descripcion=getattr(request, "descripcion", None))
                 processed = info.get("processedImages")
                 if info["status"] in ("OK", "REVIEW"):
                     last_evidence = self._evidence_info(before, info)
@@ -202,6 +239,15 @@ class SimChat:
             node_id = request.nodeId or (f"{request.evidenceCode}#{request.evidenceScope}" if request.evidenceScope else request.evidenceCode)
             s.amend_reading(node_id, request.fields, request.deleted, request.restore)
             s.apply_prefill()
+        except StepError as exc:
+            return self._respond(request.evaluationId, s, validation_error=str(exc))
+        return self._respond(request.evaluationId, s)
+
+    def evidence_note(self, request: "ChatEvidenceNoteRequest") -> ChatResponse:
+        """Agregar, editar o borrar (texto vacío) la descripción de una evidencia, desde el chat o la lista de evidencias."""
+        s = Session(json.loads(request.state))
+        try:
+            s.set_desc(request.nodeId, request.descripcion)
         except StepError as exc:
             return self._respond(request.evaluationId, s, validation_error=str(exc))
         return self._respond(request.evaluationId, s)
@@ -247,6 +293,13 @@ class SimChat:
             node["evidencesTotal"] = counts["e"]
         if answered_id is not None:
             notices = s.alerts_between(answered_id, cur if not done else None)
+        reset = s.state.pop("editReset", None)
+        if reset is not None:
+            notices = [{"id": "EDIT_OK", "tone": "info", "tag": "EDITADA",
+                        "text": ("Respuesta actualizada. Tus demás respuestas se mantienen." if not reset else
+                                 "Respuesta actualizada. Se mantienen tus demás respuestas. Se quitaron las que dependían de esta "
+                                 "(si hacen falta, te las vuelvo a preguntar): " + " · ".join(_corto(t) for t in reset[:6])
+                                 + (f" y {len(reset) - 6} más" if len(reset) > 6 else "") + ".")}] + notices
         if done:
             pend = s.por_confirmar()
             if pend:
@@ -271,6 +324,7 @@ class SimChat:
             attachedNodeIds=[k for k, e in s.A.items() if isinstance(e, dict) and e.get("src") == "adjunto"],
             lastEvidence=last_evidence, crossChecks=[], followUps=[], processedImages=processed, notices=notices,
             pendingMandatory=[_pending_item(s, i) for i in s.pending_later()],
+            evidenceNotes=s.evidence_notes(),
         )
 
 

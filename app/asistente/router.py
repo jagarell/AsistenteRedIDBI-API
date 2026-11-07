@@ -13,6 +13,8 @@ from app.asistente.texto import es_criterio
 router = APIRouter(tags=["Asistente IA"])
 LRN = re.compile(r"(qu[eé]\s+(has\s+)?aprendi(ste|do)|lo\s+que\s+aprendiste|aprendizajes?\s+(de\s+)?hoy|qu[eé]\s+(cosas\s+)?nuevas?\s+aprendiste)", re.I)
 NUEVA = re.compile(r"\b(redact|gener|cre[ae]|arm[ae]|haz|hacer|elabor|nueva)\w*\b[^.]*\bminuta", re.I)
+# 0.0.15: un pedido de reporte o de minutas por validar / por terminar no es una minuta nueva
+PIDE_DATOS = re.compile(r"\b(reportes?|informes?)\b|por validar|por terminar|sin terminar|falta(n)? terminar|en curso", re.I)
 
 
 # ---------- plan de cambios de una minuta ----------
@@ -169,7 +171,7 @@ def asistente_mensaje(req: MensajeRequest) -> Dict[str, Any]:
             return {"tipo": "texto", "texto": "Esa consulta es del administrador: él revisa lo aprendido y decide si se agregan reglas o preguntas. "
                                              "Si aprendiste algo en una visita, cuéntamelo y se lo envío como sugerencia."}
         return {"tipo": "aprendizaje", "texto": "Revisando lo aprendido hoy.", "accion": "POST /aprendizaje/hoy"}
-    if NUEVA.search(t) and not re.search(r"actualiz|modific|corrig|cambi", t, re.I):
+    if NUEVA.search(t) and not PIDE_DATOS.search(t) and not re.search(r"actualiz|modific|corrig|cambi", t, re.I):
         if re.search(r"soporte|incidencia", t, re.I):
             return {"tipo": "soporte", "texto": "¿De qué cliente es la visita de soporte? Escribe el nombre del local o la razón social."}
         if not re.search(r"implementaci", t, re.I):

@@ -19,6 +19,8 @@ def _answer_text(n, ans):
     """Lo que mandaría la app para dejar esta misma respuesta."""
     k = n["kind"]
     if k == "choice":
+        if ans.get("pc52") and ans.get("label") == "Por confirmar":
+            return "NS52"  # «No lo sé ahora» / «Aún por confirmar»
         o = next((o for o in n["opts"] if o["v"] == ans["v"]), None)
         if o is not None and not o.get("otro"):
             return str(o["v"])
