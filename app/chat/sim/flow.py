@@ -29,13 +29,13 @@ PROV = [
 ]
 # Preguntas que dependen del cliente: valor prudente cuando el técnico responde «No lo sé ahora»
 PC = {"P12": 1, "P12b": "NO", "P15": "OTRO", "P16": "NS", "P17": "NS", "P09c": "PC", "P47": "NO", "P47a": 0,
-      "P22g": "SI", "P22a": "NO", "P22b": "PEND", "P28h": "NO"}
+      "P22g": "SI", "P22a": "NO", "P22b": "PEND", "P28h": "NO", "P33": "PC"}
 TEMA = {"P12": "el número de cajas", "P12b": "si saldrán comandas en caja", "P15": "la velocidad del plan de internet",
         "P16": "si tiene internet de respaldo", "P17": "si el local tiene caídas de internet",
         "P09c": "con qué equipo tomarán pedidos los mozos (tablet, celular o iMin móvil)", "P47": "si se conectarán cámaras a la red",
         "P47a": "cuántas cámaras irán conectadas a la red", "P22g": "si el equipo de caja se queda en el local",
         "P22a": "si ya cuenta con un Raspberry", "P22b": "qué equipo adquirirá para el sistema de impresiones",
-        "P28h": "si ya tiene la impresora"}
+        "P28h": "si ya tiene la impresora", "P33": "si hay tomas de energía cerca de los equipos"}
 
 
 def pc_opts(id_: str, opts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -316,7 +316,7 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
                   "text": "¿Recomendarías un supresor de picos? ¿El cliente va a implementar tomas cerca? Dame tus apreciaciones para tenerlas en cuenta.",
                   "ph": "Escribe tus apreciaciones (por ejemplo: recomiendo supresor de picos para la caja; el cliente instalará las tomas la próxima semana)",
                   "def": "Recomiendo un supresor de picos para la caja. El cliente instalará las tomas antes del inicio."})
-        f0 = v("P33") == "SI" or (v("P33") == "NO" and bool(a.get("P33b")))
+        f0 = v("P33") in ("SI", "PC") or (v("P33") == "NO" and bool(a.get("P33b")))
         if f0:
             push(ch("P34c", "F",
                     "¿Algún cable de red pasa cerca o por detrás de electrodomésticos (licuadoras, congeladoras, refrigeradoras, microondas u otros)?",
@@ -337,7 +337,7 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
               "text": "Aísla el cable de red de la estática y la interferencia de los electrodomésticos: pásalo por canaleta o tubo, sepáralo del equipo y del cable de energía, y usa cable apantallado (FTP) si no se puede desviar."})
 
     def toma(name: str) -> bool:
-        return (not X.obra) and (not X.simple) and X.tomas is not None and name not in X.sinEnergia
+        return (not X.obra) and (not X.simple) and X.tomas in ("SI", "NO") and name not in X.sinEnergia
 
     def con_toma(name: str, txt: str) -> str:
         return txt + " Toma la foto mostrando también la toma de energía cercana a la que está conectado." if toma(name) else txt

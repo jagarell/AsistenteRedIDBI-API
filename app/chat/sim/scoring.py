@@ -62,8 +62,8 @@ def crit_infra(X: Obj, R: Obj, a: Dict[str, Any]) -> List[Obj]:
                  else ("sin dato de puertos" if sin_dato else "sin equipos por cable que medir")))
     dev = X.devices or []
     sin = len(X.sinEnergia) if X.tomas == "NO" else 0
-    C.append(Obj(k="Tomas de energía", w=25, r=None if (X.simple or not X.tomas or not dev) else ratio(len(dev) - sin, len(dev)),
-                 d="no aplica al rubro" if X.simple else "sin dato" if not X.tomas else f"{len(dev) - sin} de {len(dev)} equipos con toma cerca"))
+    C.append(Obj(k="Tomas de energía", w=25, r=None if (X.simple or X.tomas in (None, "", "PC") or not dev) else ratio(len(dev) - sin, len(dev)),
+                 d="no aplica al rubro" if X.simple else "sin dato" if X.tomas in (None, "", "PC") else f"{len(dev) - sin} de {len(dev)} equipos con toma cerca"))
     deb: List[bool] = []
     for c in X.cajasInfo or []:
         if c.eq == "SI" and c.sysImp is not False:

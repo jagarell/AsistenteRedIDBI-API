@@ -191,7 +191,6 @@ def sections(X: Obj, R: Obj, a: Dict[str, Any], d: Dict[str, Any], validada_por:
     ene = [_row("Tomas cerca de los equipos", a["P33"]["label"] if a.get("P33") else "", bad=X.tomas == "NO")]
     if X.tomas == "NO":
         ene.append(_row("Equipos sin tomas cerca", "Ninguno tiene tomas cerca" if X.ningunaToma else ", ".join(X.sinEnergia), bad=True))
-        ene.append(_row("Apreciaciones del técnico", X.apreciacion))
     return {"sec1": sec1, "neg": neg, "net": net, "caj": caj, "wifi": wifi, "ene": ene}
 
 
@@ -232,7 +231,9 @@ def rules_table(X: Obj, R: Obj, a: Dict[str, Any]) -> List[Dict[str, Any]]:
             add(f"IMP. {p.name} en buen estado", p.estadoL, False, "Observado" if p.estado == "FALLAS" else "Revisar")
     if X.libres is not None:
         add("Puertos libres para los equipos por cable", f"{fmt(X.libres)} libres · {X.eqCable or 0} equipos", not X.switchN, "Observado" if X.switchN else "Cumple")
-    if X.tomas:
+    if X.tomas == "PC":
+        add("Tomas de energía cerca", "Por confirmar", False, "Por confirmar")
+    elif X.tomas:
         add("Tomas de energía cerca", "Sí" if X.tomas == "SI" else "No", X.tomas == "SI", "Cumple" if X.tomas == "SI" else "Observado")
     if a.get("WZ") and a["WZ"].get("v") == "REVISAR":
         add("Buena señal WiFi en las zonas revisadas", "Sin buena señal: " + ", ".join(X.sinSenal) if X.sinSenal else "Todas con buena señal",
@@ -403,7 +404,7 @@ def build_document(state_answers: Dict[str, Any], ctx: Dict[str, Any], edits: Op
         pasos.append({"p": "ID", "t": SEG45})
     pr = [p for p in X.printers or [] if p.con]
     pago = uniq([*[p for p in (o.get("pago") or []) if p != "Otro"], *([o["pagoOtro"]] if "Otro" in (o.get("pago") or []) and o.get("pagoOtro") else [])])
-    has_obs = bool(o.get("tec") or o.get("serie") or o.get("viab") or pago or o.get("otroT") or cambios)
+    has_obs = bool(o.get("tec") or o.get("serie") or o.get("viab") or pago or o.get("otroT") or cambios or (X.tomas == "NO" and X.apreciacion))
     kpis = [{"label": c.k.replace(" de Red", ""), "value": c.v, "level": lvl(c.v)["label"], "color": lvl(c.v)["color"]} for c in S.cards if c.v is not None]
     glob = {"label": "Puntuación global", "value": S.g, "level": lvl(S.g)["label"], "color": "#22286b"}
 
@@ -475,6 +476,9 @@ def build_document(state_answers: Dict[str, Any], ctx: Dict[str, Any], edits: Op
     blocks.append({"t": "ul", "items": [{"b": i["t"] + ".", "text": i["d"]} for i in recs] or [{"text": "Sin recomendaciones."}]})
     if has_obs:
         h2("Observaciones")
+        # Parte 7 · C7: la apreciación larga del técnico (energía) va aquí y no dentro de una tabla
+        if X.tomas == "NO" and X.apreciacion:
+            blocks.append({"t": "para", "b": "Apreciaciones del técnico sobre la energía:", "text": X.apreciacion})
         if o.get("tec"):
             blocks.append({"t": "para", "text": o["tec"]})
         if o.get("serie"):
