@@ -143,7 +143,7 @@ def sections(X: Obj, R: Obj, a: Dict[str, Any], d: Dict[str, Any], validada_por:
             en = "" if c.raspEnergia is None else f" · toma de energía: {'sí' if c.raspEnergia else 'no'}"
             pu = "" if c.raspPunto is None else f" · punto de red: {'sí' if c.raspPunto else 'no'}"
             via = f" · {c.raspViaL.lower()}" if c.raspViaL else ""
-            caj.append(_row(f"Raspberry de {c.nm}{'' if c.rasp else ' (por adquirir)'}",
+            caj.append(_row(f"Raspberry de {c.nm}{'' if c.rasp else ' (por implementar)'}",
                             f"{'Conectado' if c.rasp else 'Irá conectado'} por {'cable de red' if c.raspCable else 'WiFi'}{via}{en}{pu}",
                             bad=c.raspEnergia is False or c.raspPunto is False))
         if c.anydesk:
@@ -404,7 +404,7 @@ def build_document(state_answers: Dict[str, Any], ctx: Dict[str, Any], edits: Op
         for p in pr:
             bad = p.estado in ("FALLAS", "MANT") or (p.prep and p.con != "RED")
             if p.con == "NO":
-                est = "Por adquirir"
+                est = "Por implementar"
             elif p.prep and p.con != "RED":
                 est = "Debe ser de red" + (f" · {p.estadoL.lower()}" if p.estadoL else "")
             else:
