@@ -31,6 +31,20 @@ app.include_router(chat_router)
 app.include_router(asistente_router)
 
 
+class GeoReverseRequest(BaseModel):
+    lat: float
+    lng: float
+    precision_m: float | None = None
+    nombre_local: str | None = None
+
+
+@app.post("/geo/reverse")
+def geo_reverse(req: GeoReverseRequest):
+    """Ubicación GPS del local: dirección, distrito, departamento y coincidencia con el nombre (docs/0.0.7/04-geocodificacion.md)."""
+    from app.geo_reverse import reverse
+    return reverse(req.lat, req.lng, req.precision_m, req.nombre_local)
+
+
 class AnalyzeRequest(BaseModel):
     evaluationId: int
     restaurantName: str

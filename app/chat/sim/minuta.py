@@ -46,6 +46,34 @@ def _city(addr: Any) -> str:
     return p[-1] if len(p) > 1 else ""
 
 
+def _ubicacion(direccion: Any, gps: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """«Distrito / Departamento» (reemplaza «Ciudad») y «Ubicación GPS» como enlace al mapa (docs/0.0.7/03-gps-direccion.md §2)."""
+    from app.geo_reverse import departamento_de
+    g = gps or {}
+    geo = g.get("geo") or {}
+    dist = dep = ""
+    if geo and geo.get("direccion") and str(geo.get("direccion")).strip() == str(direccion or "").strip():
+        dist, dep = str(geo.get("distrito") or ""), str(geo.get("departamento") or "")
+    if not dist:
+        dist = re.split(r"\s[–-]\s", _city(direccion))[-1].strip() if _city(direccion) else ""
+        dep = departamento_de(dist)
+    rows = [_row("Distrito / Departamento", f"{dist} / {dep}" if dep else dist, ask="no se pudo derivar de la dirección")]
+    try:
+        lat, lng = float(g["lat"]), float(g["lng"])
+    except (KeyError, TypeError, ValueError):
+        rows.append({"label": "Ubicación GPS", "pending": True, "note": "no se capturó la ubicación GPS"})
+        return rows
+    prec = g.get("acc") if g.get("acc") is not None else g.get("precision_m")
+    coin = geo.get("coincidencia") or {}
+    txt = f"{lat:.5f}, {lng:.5f} · ver en el mapa"
+    if prec is not None:
+        txt += f" (±{round(float(prec))} m)"
+    if coin.get("nombre"):
+        txt += f" · coincide con «{coin['nombre']}»"
+    rows.append({"label": "Ubicación GPS", "value": txt, "bad": False, "href": f"https://www.google.com/maps?q={lat:.6f},{lng:.6f}"})
+    return rows
+
+
 def _cap(s: str) -> str:
     return s[:1] + s[1:].lower() if s else ""
 
@@ -54,12 +82,12 @@ def _table(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     return {"t": "kv", "rows": rows}
 
 
-def sections(X: Obj, R: Obj, a: Dict[str, Any], d: Dict[str, Any], validada_por: Optional[str]) -> Dict[str, List[Dict[str, Any]]]:
+def sections(X: Obj, R: Obj, a: Dict[str, Any], d: Dict[str, Any], validada_por: Optional[str], gps: Optional[Dict[str, Any]] = None) -> Dict[str, List[Dict[str, Any]]]:
     pend_ask = "se saltó: se completa al editar la minuta"
     sec1 = [
         _row("Razón social", d.get("razon") or X.razon), _row("RUC", d.get("ruc") or X.ruc),
         _row("Nombre del local", d.get("nombre") or X.nombre), _row("Rubro", X.rubL), _row("Estado del local", X.estadoL),
-        _row("Dirección", d.get("dir") or X.dir), _row("Ciudad", _city(d.get("dir") or X.dir), ask="no se pudo derivar de la dirección"),
+        _row("Dirección", d.get("dir") or X.dir), *_ubicacion(d.get("dir") or X.dir, gps),
         _row("Encargado del local", X.encargado), _row("Celular", X.celular, ask=pend_ask),
         _row("Correo", d.get("correo") or X.correo, ask=pend_ask),
         _row("Fecha de evaluación", X.fechaVisita),
@@ -365,7 +393,7 @@ def build_document(state_answers: Dict[str, Any], ctx: Dict[str, Any], edits: Op
     cambios = edits.get("cambios") or []
     name = d.get("nombre") or X.nombre or "el local"
     fecha = X.fechaVisita or meta.get("fecha") or ""
-    sec = sections(X, R, a, d, meta.get("validatedBy"))
+    sec = sections(X, R, a, d, meta.get("validatedBy"), edits.get("gps"))
     m = build_map(X)
     otros = otros_equipos(m)
     rules = rules_table(X, R, a)
