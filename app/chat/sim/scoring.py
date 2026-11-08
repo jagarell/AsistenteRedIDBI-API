@@ -134,8 +134,9 @@ def crit_equip(X: Obj, R: Obj, a: Dict[str, Any]) -> List[Obj]:
                               f"{p.name}: {'por implementar' if not p.con or p.con == 'NO' else 'sin dato'}" for p in pr) if pr else "sin impresoras"))
     ad = [c for c in cj if a.get(f"E7#{c.i}") is not None]
     ad_ok = len([c for c in ad if c.anydesk and c.anydesk.get("codigo")])
-    C.append(Obj(k="Acceso remoto (AnyDesk)", w=10, r=ratio(ad_ok, len(ad)),
-                 d=f"{ad_ok} de {len(ad)} equipos de caja con código de AnyDesk" if ad else "no se pidió"))
+    # Se reparte entre todas las cajas: la que aún no tiene equipo (por implementar) o no mostró el AnyDesk no suma.
+    C.append(Obj(k="Acceso remoto (AnyDesk)", w=10, r=ratio(ad_ok, len(cj)) if ad else None,
+                 d=f"{ad_ok} de {len(cj)} equipos de caja con código de AnyDesk (el resto, por implementar o sin evidencia)" if ad else "no se pidió"))
     return C
 
 
@@ -147,8 +148,10 @@ def crit_wifi(X: Obj, R: Obj) -> Optional[List[Obj]]:
              d=f"{len(Z) - len(bad)} de {len(Z)} zonas y lugares de preparación{' (sin buena señal: ' + ', '.join(bad) + ')' if bad else ''}")]
     Q = {"Excelente": 1, "Buena": 0.85, "Regular": 0.5, "Mala": 0}
     wz = X.wz or []
-    C.append(Obj(k="Calidad medida", w=20, r=jsum(Q[z["cal"]] for z in wz) / len(wz) if wz else None,
-                 d=" · ".join(f"{z['z']} {z['cal'].lower()}" for z in wz) if wz else "no se midió por zona"))
+    # Cada zona registrada vale lo mismo: las que no se midieron no suman (la medición es opcional y puede ser parcial).
+    nz = max(len(Z), len(wz))
+    C.append(Obj(k="Calidad medida", w=20, r=jsum(Q[z["cal"]] for z in wz) / nz if wz else None,
+                 d=(" · ".join(f"{z['z']} {z['cal'].lower()}" for z in wz) + f" · {len(wz)} de {nz} zonas medidas") if wz else "no se midió por zona"))
     C.append(Obj(k="Solución definida", w=15, r=(1 if X.solWifi else 0) if bad else 1,
                  d=(f"se instalará {X.solWifi.lower()}" if X.solWifi else "falta definir la solución") if bad else "no hace falta"))
     return C
