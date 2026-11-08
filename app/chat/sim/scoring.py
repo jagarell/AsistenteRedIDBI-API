@@ -71,15 +71,19 @@ def crit_infra(X: Obj, R: Obj, a: Dict[str, Any]) -> List[Obj]:
         if c.rasp:
             deb.append(bool(c.raspCable))
     for p in X.printers or []:
-        if p.prep and p.con and p.con not in ("NO", "NONE"):
+        if p.con and p.con not in ("NO", "NONE"):
             deb.append(p.con == "RED" and p.via != "WIFI")
     ok_deb = len([x for x in deb if x])
     C.append(Obj(k="Conexión por cable", w=20, r=ratio(ok_deb, len(deb)),
-                 d=f"{ok_deb} de {len(deb)} equipos que deben ir por cable lo están" if deb else "sin equipos que deban ir por cable"))
+                 d=f"{ok_deb} de {len(deb)} equipos (PC, laptop, impresoras) con puerto o cable de red" if deb else "sin equipos que medir"))
     ip_p = [p for p in X.printers or [] if p.con in ("RED", "WIFI") and p.ip]
     in_seg = len([p for p in ip_p if p.ip.startswith(X.seg + ".")])
-    C.append(Obj(k="Segmento de red", w=10, r=ratio(in_seg, len(ip_p)),
-                 d=f"{in_seg} de {len(ip_p)} impresoras de red en {X.seg}.x" if ip_p else "sin impresoras de red con IP"))
+    # El segmento se identifica con la evidencia del ipconfig, del speedtest o del escáner de IP; sin ella (internet por implementar
+    # o sin internet) no hay con qué comparar y el criterio queda N/A.
+    hay_ev = bool(X.ipconfig or X.scanner or R.sp)
+    C.append(Obj(k="Segmento de red", w=10, r=ratio(in_seg, len(ip_p)) if hay_ev else None,
+                 d=("sin evidencia de red (ipconfig, speedtest o escáner de IP)" if not hay_ev
+                    else f"{in_seg} de {len(ip_p)} impresoras de red en {X.seg}.x" if ip_p else "sin impresoras de red con IP")))
     C.append(Obj(k="Calidad del cableado", w=10, r=(0 if has("R65") else 1) if R.sp else None,
                  d=("velocidad limitada a ~100 Mbps (cable, puerto o switch de 10/100)" if has("R65") else "sin tope de 100 Mbps en la prueba por cable")
                  if R.sp else "sin prueba por cable"))
@@ -117,13 +121,17 @@ def crit_equip(X: Obj, R: Obj, a: Dict[str, Any]) -> List[Obj]:
                  d=f"{exist} de {len(pr)} impresoras necesarias ya existen" if pr else "sin impresoras"))
     ex = [p for p in pr if p.con and p.con not in ("NO", "NONE")]
     ok = [p for p in ex if ((p.con == "RED") if p.prep else (p.con != "USB" or p.usbTo == "PC"))]
-    C.append(Obj(k="Impresora adecuada", w=20, r=ratio(len(ok), len(ex)),
-                 d=f"{len(ok)} de {len(ex)} impresoras del tipo correcto (preparación de red; USB solo con PC o laptop)" if ex else "sin impresoras conectadas"))
+    # El puntaje se reparte entre TODAS las impresoras registradas: cada una vale peso ÷ N. Las que aún no existen (por implementar)
+    # o no tienen evidencia no suman; así el criterio refleja cuántas están habilitadas y cuántas faltan.
+    C.append(Obj(k="Impresora adecuada", w=20, r=ratio(len(ok), len(pr)),
+                 d=(f"{len(ok)} de {len(pr)} impresoras del tipo correcto (preparación de red; USB solo con PC o laptop); "
+                    f"{len(pr) - len(ex)} por implementar o sin conexión") if pr else "sin impresoras"))
     EV = {"NUEVA": 1, "VIABLE": 1, "MANT": 0.5, "FALLAS": 0}
     est = [p for p in ex if p.estado]
     se = jsum(EV.get(p.estado, 0.5) for p in est)
-    C.append(Obj(k="Estado de las impresoras", w=15, r=ratio(se, len(est)),
-                 d=" · ".join(f"{p.name}: {str(p.estadoL or '').lower()}" for p in est) if est else "sin dato"))
+    C.append(Obj(k="Estado de las impresoras", w=15, r=ratio(se, len(pr)),
+                 d=" · ".join(f"{p.name}: {str(p.estadoL or '').lower()}" if p in est else
+                              f"{p.name}: {'por implementar' if not p.con or p.con == 'NO' else 'sin dato'}" for p in pr) if pr else "sin impresoras"))
     ad = [c for c in cj if a.get(f"E7#{c.i}") is not None]
     ad_ok = len([c for c in ad if c.anydesk and c.anydesk.get("codigo")])
     C.append(Obj(k="Acceso remoto (AnyDesk)", w=10, r=ratio(ad_ok, len(ad)),
