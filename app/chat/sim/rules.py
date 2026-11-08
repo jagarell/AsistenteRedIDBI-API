@@ -329,7 +329,7 @@ def _evaluate_base(X: Obj, a: Dict[str, Any], ctx: Dict[str, Any]) -> Obj:
              "eq": "supresor de picos"})
     if X.tomas == "NO":
         add({"id": "ENERGIA", "tipo": "OBS", "t": "Faltan tomas de energía",
-             "d": X.energiaTxt + (" Apreciación del técnico: " + X.apreciacion if X.apreciacion else ""),
+             "d": X.energiaTxt,
              "trabajo": "tomas de energía" + (" para " + ", ".join(X.sinEnergia) if X.sinEnergia else "")})
     if X.cableElec:
         add({"id": "R_ELEC", "tipo": "REC", "t": "Cable cerca de electrodomésticos",
