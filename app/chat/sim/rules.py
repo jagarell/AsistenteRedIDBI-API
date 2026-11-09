@@ -313,8 +313,9 @@ def _evaluate_base(X: Obj, a: Dict[str, Any], ctx: Dict[str, Any]) -> Obj:
                  "d": "Aún no tiene impresora." if p.con == "NO" else f"Hoy es {'USB' if p.con == 'USB' else 'WiFi'}.",
                  "eq": "impresora de red", "trabajo": "impresora de red"})
         if not p.prep and p.con == "NO":
-            add({"id": "IMP", "tipo": "OBS", "t": f"IMP. {p.name}: falta impresora", "d": "Adquirir la impresora de caja.",
-                 "eq": "impresora de caja", "trabajo": "impresora de caja"})
+            lugar = f"de {p.name}" if p.extra else "de caja"
+            add({"id": "IMP", "tipo": "OBS", "t": f"IMP. {p.name}: falta impresora", "d": f"Adquirir la impresora {lugar}.",
+                 "eq": f"impresora {lugar}", "trabajo": f"impresora {lugar}"})
         if p.con in ("RED", "WIFI") and p.ip and not p.ip.startswith(X.seg + "."):
             add({"id": "R55 · V04", "tipo": "OBS", "t": f"IMP. {p.name}: fuera del segmento del router",
                  "d": (f"IP {p.ip}; el router y las otras impresoras están en {X.seg}.x. Configurar la impresora en la misma red y segmento que las otras impresoras antes de iniciar con el punto de venta."

@@ -356,7 +356,7 @@ def annex(X: Obj, a: Dict[str, Any], N: List[Dict[str, Any]]) -> Dict[str, Any]:
                 d = [f"{dd.get('marca') or ''} {dd.get('modelo') or ''}".strip(), "USB: sin IP ni MAC"]
             cs.append(_cell(f"IMP. {p.name} · {LBL[c]}", LBL[c], d, ref(c + K)))
         if cs:
-            prn.append({"heading": f"IMP. {p.name} · Ubic.: {p.name if p.prep else 'Caja'}", "cells": cs})
+            prn.append({"heading": f"IMP. {p.name} · Ubic.: {p.name if (p.prep or p.extra) else 'Caja'}", "cells": cs})
     v = a.get("P49a", {}).get("v") if a.get("P49a") else None
     vids = v if isinstance(v, list) else ([{"d": "Video del local", "u": v}] if v else [])
     # fotos guardadas como correctas («Guardar como correcta»): la minuta solo muestra la nota que escribió el técnico
@@ -445,7 +445,7 @@ def build_document(state_answers: Dict[str, Any], ctx: Dict[str, Any], edits: Op
                 est = "Debe ser de red" + (f" · {p.estadoL.lower()}" if p.estadoL else "")
             else:
                 est = p.estadoL or "Sin dato"
-            rows.append({"cells": [f"IMP. {p.name}", p.name if p.prep else "Caja", (" ".join(x for x in [p.marca, p.modelo] if x) or "Sin dato") + (f" · SN {p.sn}" if p.sn else ""),
+            rows.append({"cells": [f"IMP. {p.name}", p.name if (p.prep or p.extra) else "Caja", (" ".join(x for x in [p.marca, p.modelo] if x) or "Sin dato") + (f" · SN {p.sn}" if p.sn else ""),
                                    "No aplica (USB)" if p.con == "USB" else (p.ip + (f" · {p.mac}" if p.mac else "") if p.ip else "Sin dato"),
                                    CONN_L[p.con] + (f" · {p.viaL.lower()}" if p.viaL else "") + _punto(p), est], "badLast": bool(bad)})
         blocks.append({"t": "h3", "text": "Impresoras"})
