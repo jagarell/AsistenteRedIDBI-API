@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional
 from app.chat.sim.flow import CAT, PERFIL
 from app.chat.sim.util import Obj, fmt, jsround, jsum, uniq
 
+PUNTO_PESO = {"HAB": 1, "SINJACK": 0.5, "SINCABLE": 0, "AVERIADO": 0}
+
 TILES = {
     "Conectividad de Red": ("router", "#1565C0", "#E3F2FD"),
     "Infraestructura Física": ("servr", "#F57C00", "#FFF3E0"),
@@ -47,18 +49,25 @@ def crit_infra(X: Obj, R: Obj, a: Dict[str, Any]) -> List[Obj]:
     C: List[Obj] = []
     nP = okP = 0
     sin_dato = False
+    # Impresoras con punto de red preguntado (0.0.19): se miden por su punto (Habilitado 1, Cable sin jack 0.5, Sin cable o
+    # Averiado 0) y ya no compiten por los puertos libres del router. «Por confirmar» no entra al cálculo.
+    pto = [p for p in X.printers or [] if p.punto in PUNTO_PESO]
+    en_router = len([p for p in pto if p.via in ("ROUTER", "SOCKET")])
     if X.eqCable is not None and X.libres is not None:
-        nP += X.eqCable
-        okP += min(X.libres, X.eqCable)
+        nP += X.eqCable - en_router
+        okP += min(X.libres, X.eqCable - en_router)
     elif X.hasInt and not X.obra and not X.simple:
         sin_dato = True
+    for p in pto:
+        nP += 1
+        okP += PUNTO_PESO[p.punto]
     for c in X.cajasInfo or []:
         if (c.rasp or c.adq == "RASPBERRY") and c.raspPunto is not None and c.raspVia and c.raspVia != "ROUTER":
             nP += 1
             if c.raspPunto:
                 okP += 1
     C.append(Obj(k="Puntos de red", w=30, r=okP / nP if nP else None,
-                 d=f"{okP} de {nP} equipos por cable con puerto libre o punto de red" if nP
+                 d=f"{fmt(okP)} de {nP} equipos por cable con puerto libre o punto de red" if nP
                  else ("sin dato de puertos" if sin_dato else "sin equipos por cable que medir")))
     dev = X.devices or []
     sin = len(X.sinEnergia) if X.tomas == "NO" else 0
