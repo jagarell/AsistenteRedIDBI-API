@@ -31,3 +31,22 @@ def test_la_foto_saltada_de_una_impresora_que_no_existe_no_queda_pendiente(monke
     s = _minuta_amat(monkeypatch)
     evid = next((i for i in s.R.it if i.id == "EVID"), None)
     assert evid is None or "E5a · Calientes" not in evid.d
+
+
+def test_descripcion_otro_local_no_cuenta_la_impresora(monkeypatch):
+    s = _minuta_amat(monkeypatch)
+    a = copy.deepcopy(s.A)
+    a["E5a#Panaderia"]["desc"] = "Esta impresora es de otro local, solo salió en la foto"
+    nodos, X = build(a, s.state["ctx"])[:2]
+    assert "Panaderia" not in [p.name for p in X.printers]
+    assert "E5b#Panaderia" not in [n["id"] for n in nodos]
+
+
+def test_descripcion_aun_no_existe_es_por_implementar_sin_preguntar(monkeypatch):
+    s = _minuta_amat(monkeypatch)
+    a = copy.deepcopy(s.A)
+    a["E5a#Panaderia"]["desc"] = "Todavía no hay impresora, irá en esa barra"
+    nodos, X = build(a, s.state["ctx"])[:2]
+    p = next(p for p in X.printers if p.name == "Panaderia")
+    ids = [n["id"] for n in nodos]
+    assert p.con == "NO" and "P28h#Panaderia" not in ids and "E5b#Panaderia" not in ids
