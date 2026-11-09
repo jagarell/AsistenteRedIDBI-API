@@ -146,6 +146,21 @@ def borrador(texto: str, adjuntos: Optional[List[str]] = None) -> Dict[str, Any]
     return _completar_con_ia(texto, out)
 
 
+_SIN_DATO = {"null", "none", "n/a", "na", "no indica", "no indicado", "no especificado", "desconocido", "sin dato", "-", "—"}
+
+
+def _valor_ia_valido(campo: str, valor: Any, ruc: Any = None) -> bool:
+    """Descarta lo que ChatGPT devuelve como relleno: vacío, «no indica», o (en razón social) el propio RUC o un número."""
+    v = str(valor or "").strip()
+    if not v or v.lower() in _SIN_DATO:
+        return False
+    if campo == "razon":
+        solo = re.sub(r"\D", "", v)
+        if re.match(r"^\s*ruc\b", v, flags=re.I) or (solo and solo == re.sub(r"\D", "", str(ruc or "")) and len(solo) >= 8) or v.isdigit():
+            return False
+    return True
+
+
 def _completar_con_ia(texto: str, out: Dict[str, Any]) -> Dict[str, Any]:
     """Con OPENAI_API_KEY, ChatGPT completa los campos que las reglas no encontraron. No envía contraseñas ni claves."""
     key = os.getenv("OPENAI_API_KEY")
@@ -162,14 +177,14 @@ def _completar_con_ia(texto: str, out: Dict[str, Any]) -> Dict[str, Any]:
             model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"), temperature=0, response_format={"type": "json_object"},
             messages=[{"role": "system", "content": (
                 "Extraes datos de una visita técnica de red para una minuta. Responde SOLO JSON con las claves: "
-                f"datos (objeto con solo estas claves si aparecen en el texto: {', '.join(faltan)}), "
+                f"datos (objeto con solo estas claves si aparecen en el texto: {', '.join(faltan)}; «razon» es la razón social legal, nunca el RUC: si el texto no la dice, omítela), "
                 "conexiones (lista de {desde, hacia, medio: Cable|WiFi|USB}; nombres cortos: «IMP. Cocina», «PC Caja», «Router», «Switch», «Repetidor · Salón 2»; "
                 "si un enlace cambia, deja el último medio). No inventes: si no está en el texto, omítelo.")},
                 {"role": "user", "content": limpio}])
         j = json.loads(r.choices[0].message.content or "{}")
         for k, v in (j.get("datos") or {}).items():
-            if k in faltan and v:
-                out["datos"][k] = str(v)
+            if k in faltan and _valor_ia_valido(k, v, out["datos"].get("ruc")):
+                out["datos"][k] = str(v).strip()
         if not out["conexiones"]:
             vistos = set()
             for c in j.get("conexiones") or []:

@@ -36,7 +36,9 @@ def leer(tipo: Optional[str], images_b64: List[str]) -> Dict[str, Any]:
     prompt = ("Lees un documento de un cliente peruano (ficha RUC de SUNAT, boleta o factura, recibo de internet, tarjeta de presentación "
               "o foto del letrero del local). Extrae SOLO lo claramente legible; si no se ve, usa null. No inventes. Responde un JSON con "
               f'"tipo" (uno de {list(TIPOS)}) y las claves {claves}. "ruc": 11 dígitos sin espacios. "planMbps": número. '
-              '"encargado": "Nombre Apellido, cargo". "nombreComercial": nombre comercial o del letrero, no la razón social.')
+              '"encargado": "Nombre Apellido, cargo". "razonSocial": el nombre legal de la empresa (en la ficha RUC va después del número de RUC y un guion, '
+              'por ejemplo «20123456789 - MI EMPRESA S.A.C.»); nunca el tipo de contribuyente ni el tipo de sociedad (SOCIEDAD ANONIMA CERRADA, E.I.R.L. solos). '
+              '"nombreComercial": solo si el documento trae un nombre comercial o letrero distinto de la razón social; si dice «-» o no aparece, usa null.')
     try:
         from openai import OpenAI
         client = OpenAI(api_key=settings.openai_api_key)
