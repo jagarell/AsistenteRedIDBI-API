@@ -222,6 +222,50 @@ class _Canvas:
         self.poly([(x + (px - 0) * u, y + py * u) for px, py in pts], color, "#FFFFFF")
 
 
+_IMG_PX = {"S": 90, "M": 140, "L": 210}
+_TXT_PX = {"S": 11, "M": 14, "L": 19}
+
+
+def _anotaciones(c: "_Canvas", m: Dict[str, Any], images: Dict[str, bytes]) -> None:
+    """Fotos y notas que el técnico colocó en el mapa (editor de la app o de la web): se dibujan donde las dejó,
+    sobre el área del mapa (arriba de la leyenda). Una foto que no se puede leer se omite."""
+    area_h = H - LEG
+    for im in m.get("images") or []:
+        raw = images.get(str(im.get("id")))
+        if not raw:
+            continue
+        try:
+            photo = Image.open(io.BytesIO(raw)).convert("RGB")
+        except Exception:  # noqa: BLE001
+            continue
+        w = _IMG_PX.get(im.get("size"), 140)
+        h = max(1.0, photo.height * w / photo.width)
+        cx = min(max(float(im.get("x", 0.8)) * W, w / 2 + 2), W - w / 2 - 2)
+        cy = min(max(float(im.get("y", 0.2)) * area_h, h / 2 + 2), area_h - h / 2 - 2)
+        photo = photo.resize((max(1, c.p(w)), max(1, c.p(h))))
+        left, top = c.p(cx - w / 2), c.p(cy - h / 2)
+        c.img.paste(photo, (left, top))
+        c.d.rectangle([left, top, left + photo.width, top + photo.height], outline=_rgb("#2E7D32"), width=max(1, c.p(1.6)))
+        if im.get("label"):
+            c.text(cx, cy + h / 2 + 12, str(im["label"])[:30], 10.5, "#1F2937", True)
+    for tx in m.get("texts") or []:
+        txt = str(tx.get("text") or "").strip()
+        if not txt:
+            continue
+        size = _TXT_PX.get(tx.get("size"), 14)
+        lines = _wrap(txt, 220, size)
+        font = _font(size, True)
+        w = max(c.d.textlength(line, font=font) for line in lines) / SCALE + 16
+        h = len(lines) * (size + 3) + 10
+        cx = min(max(float(tx.get("x", 0.5)) * W, w / 2 + 2), W - w / 2 - 2)
+        cy = min(max(float(tx.get("y", 0.5)) * area_h, h / 2 + 2), area_h - h / 2 - 2)
+        left, top = cx - w / 2, cy - h / 2
+        c.d.rounded_rectangle([c.p(left), c.p(top), c.p(left + w), c.p(top + h)], radius=c.p(6),
+                              fill=_rgb(str(tx.get("color") or "#FFF4CC")), outline=_rgb("#B08228"), width=max(1, c.p(1.2)))
+        for i, line in enumerate(lines):
+            c.text(left + 8, top + 5 + size + i * (size + 3) - 3, line, size, "#5A3C0A", True, "ls")
+
+
 def render_print_png(m: Dict[str, Any], doc: Optional[Dict[str, Any]] = None, images: Optional[Dict[str, bytes]] = None) -> bytes:
     if doc and doc.get("nodes"):
         m = from_document(doc)
@@ -321,6 +365,7 @@ def render_print_png(m: Dict[str, Any], doc: Optional[Dict[str, Any]] = None, im
         for line in L2:
             c.text(x, ty, _wrap(line, cw, F2)[0], F2, "#B42318" if (line.startswith("IP") and n.ipBad) else "#4B5563")
             ty += LH * 0.92
+    _anotaciones(c, m, images or {})
     # leyenda dentro del mismo 50 %
     c.line([(0, H - LEG), (W, H - LEG)], "#E5E7EB", 0.5)
     lx, ly = 10.0, H - LEG + 16.0
