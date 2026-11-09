@@ -26,6 +26,8 @@ def _minuta_amat(monkeypatch) -> Session:
         if i in OV:
             v = OV[i]
             s.answer(json.dumps(v) if isinstance(v, list) else v)
+        elif i.startswith("E5a#") and not i.endswith("Panaderia"):
+            s.answer("@SKIP")  # en obra la foto va primero; sin foto ni descripción se pregunta si ya tiene la impresora
         elif i.startswith("P28h#"):
             s.answer("SI" if i.endswith("Panaderia") else "NO")
         elif i == "EVO":
