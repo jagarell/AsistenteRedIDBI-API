@@ -46,6 +46,13 @@ def _city(addr: Any) -> str:
     return p[-1] if len(p) > 1 else ""
 
 
+def _punto(p: Any) -> str:
+    """Punto de red de la impresora (solo si se preguntó)."""
+    if not p.punto:
+        return ""
+    return " · punto de red por confirmar" if p.punto == "PC" else f" · punto de red: {(p.puntoL or '').lower()}"
+
+
 def _ubicacion(direccion: Any, gps: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """«Distrito / Departamento» (reemplaza «Ciudad») y «Ubicación GPS» como enlace al mapa (docs/0.0.7/03-gps-direccion.md §2)."""
     from app.geo_reverse import departamento_de
@@ -440,7 +447,7 @@ def build_document(state_answers: Dict[str, Any], ctx: Dict[str, Any], edits: Op
                 est = p.estadoL or "Sin dato"
             rows.append({"cells": [f"IMP. {p.name}", p.name if p.prep else "Caja", (" ".join(x for x in [p.marca, p.modelo] if x) or "Sin dato") + (f" · SN {p.sn}" if p.sn else ""),
                                    "No aplica (USB)" if p.con == "USB" else (p.ip + (f" · {p.mac}" if p.mac else "") if p.ip else "Sin dato"),
-                                   CONN_L[p.con] + (f" · {p.viaL.lower()}" if p.viaL else ""), est], "badLast": bool(bad)})
+                                   CONN_L[p.con] + (f" · {p.viaL.lower()}" if p.viaL else "") + _punto(p), est], "badLast": bool(bad)})
         blocks.append({"t": "h3", "text": "Impresoras"})
         blocks.append({"t": "table", "head": ["Nombre", "Ubicación", "Marca y modelo · SN", "IP · MAC", "Conexión", "Estado"], "rows": rows, "firstBold": True})
     sw = X.sw46

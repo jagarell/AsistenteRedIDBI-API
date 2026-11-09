@@ -2,7 +2,7 @@
 import re
 from typing import Any, Dict, List, Optional
 
-from app.chat.sim.flow import CAT, fmt_date, sys_imp_n
+from app.chat.sim.flow import CAT, PUNTO_ALERT, PUNTO_TRABAJO, PUNTO_TXT, fmt_date, sys_imp_n
 from app.chat.sim.util import Obj, fmt, jsround, jsum, num, truthy, uniq
 
 MOZOS: List[str] = CAT["MOZOS"]
@@ -293,6 +293,9 @@ def _evaluate_base(X: Obj, a: Dict[str, Any], ctx: Dict[str, Any]) -> Obj:
         if p.estado == "MANT":
             add({"id": "IMP-MT", "tipo": "REC", "t": f"IMP. {p.name}: mantenimiento", "d": "Darle mantenimiento a la impresora antes del inicio.",
                  "trabajo": f"mantenimiento de IMP. {p.name}"})
+        if p.punto in PUNTO_TRABAJO:
+            add({"id": "IMP-PTO", "tipo": "OBS", "t": f"IMP. {p.name}: punto de red {PUNTO_TXT[p.punto]}",
+                 "d": f"{PUNTO_ALERT[p.punto][0].upper()}{PUNTO_ALERT[p.punto][1:]}", "trabajo": f"{PUNTO_TRABAJO[p.punto]} para IMP. {p.name}"})
         if p.con == "NONE":
             add({"id": "IMP-NC", "tipo": "OBS", "t": f"IMP. {p.name} sin conexión",
                  "d": "No se indicó cómo se conecta ni aparece en el escáner de IP. Verificar la conexión."})

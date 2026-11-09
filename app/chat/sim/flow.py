@@ -29,13 +29,14 @@ PROV = [
 ]
 # Preguntas que dependen del cliente: valor prudente cuando el técnico responde «No lo sé ahora»
 PC = {"P12": 1, "P12b": "NO", "P15": "OTRO", "P16": "NS", "P17": "NS", "P09c": "PC", "P47": "NO", "P47a": 0,
-      "P22g": "SI", "P22a": "NO", "P22b": "PEND", "P28h": "NO", "P33": "PC"}
+      "P22g": "SI", "P22a": "NO", "P22b": "PEND", "P28h": "NO", "P33": "PC", "P28p": "PC"}
 TEMA = {"P12": "el número de cajas", "P12b": "si saldrán comandas en caja", "P15": "la velocidad del plan de internet",
         "P16": "si tiene internet de respaldo", "P17": "si el local tiene caídas de internet",
         "P09c": "con qué equipo tomarán pedidos los mozos (tablet, celular o iMin móvil)", "P47": "si se conectarán cámaras a la red",
         "P47a": "cuántas cámaras irán conectadas a la red", "P22g": "si el equipo de caja se queda en el local",
         "P22a": "si ya cuenta con un Raspberry", "P22b": "qué equipo adquirirá para el sistema de impresiones",
-        "P28h": "si ya tiene la impresora", "P33": "si hay tomas de energía cerca de los equipos"}
+        "P28h": "si ya tiene la impresora", "P33": "si hay tomas de energía cerca de los equipos",
+        "P28p": "el estado del punto de red de la impresora"}
 
 
 def pc_opts(id_: str, opts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -48,6 +49,15 @@ def pc_opts(id_: str, opts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 
+# Punto de red de una impresora por cable que no va directo al router (0.0.19). «Otro» y «No lo sé ahora» los agrega pc_opts.
+PUNTO_OPTS = [{"v": "HAB", "l": "Habilitado (con cable y jack, listo para conectar)"}, {"v": "SINJACK", "l": "Hay cable pero sin jack"},
+              {"v": "SINCABLE", "l": "No hay cable hasta ese lugar"}, {"v": "AVERIADO", "l": "Averiado (no da red)"}]
+PUNTO_ALERT = {"SINJACK": "el punto de red tiene cable pero no jack: colocar el jack antes del inicio.",
+               "SINCABLE": "no hay cable de red hasta la impresora: tender el cable y colocar el punto de red.",
+               "AVERIADO": "el punto de red está averiado: repararlo o cambiarlo."}
+PUNTO_TXT = {"SINJACK": "sin jack", "SINCABLE": "sin cable", "AVERIADO": "averiado"}
+PUNTO_TRABAJO = {"SINJACK": "colocar el jack del punto de red", "SINCABLE": "tender el cable y colocar el punto de red",
+                 "AVERIADO": "reparar el punto de red"}
 EV_KINDS = ["ev", "check", "rcard", "links", "summary"]
 SYS_IMP_DEFAULT = "Wrapper"  # nombre del sistema de impresiones de la empresa (Preguntas y reglas del administrador)
 
@@ -103,7 +113,7 @@ def fmt_date(s: Any) -> Any:
 
 
 def is_ev_step(n: Dict[str, Any]) -> bool:
-    return n["kind"] in EV_KINDS or n["id"] == "EVO" or re.match(r"^P28[bcu]?#", n["id"]) is not None
+    return n["kind"] in EV_KINDS or n["id"] == "EVO" or re.match(r"^P28[bcup]?#", n["id"]) is not None
 
 
 def ch(id_: str, b: str, text: str, opts: List[Dict[str, Any]], extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -740,6 +750,16 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
                     {"def": "WIFI" if pr.con == "WIFI" else "ROUTER"}))
         pr.via = v("P28c" + K)
         pr.viaL = lab("P28c" + K)
+        # Punto de red de la impresora (0.0.19): solo si el cable no va directo al router ni es WiFi.
+        pto_q = pr.con == "RED" and bool(pr.via) and pr.via not in ("ROUTER", "WIFI")
+        if pto_q:
+            push(ch("P28p" + K, "E", f"{nm}: ¿cómo está el punto de red donde se conecta la impresora?", PUNTO_OPTS, {"def": "HAB"}))
+        pr.ptoQ = pto_q
+        pr.punto = v("P28p" + K) if pto_q else None
+        pr.puntoL = lab("P28p" + K) if pto_q and a.get("P28p" + K) else None
+        if pr.punto in PUNTO_ALERT:
+            push({"id": "A_PTO" + pr.name, "kind": "alert", "tone": "warn", "tag": "PUNTO DE RED",
+                  "text": f"{nm}: {PUNTO_ALERT[pr.punto]}"})
         if pr.estado == "FALLAS":
             push({"id": "A_AV" + pr.name, "kind": "alert", "tone": "warn", "tag": "CON FALLAS",
                   "text": f"{nm} tiene fallas: reparar o reemplazar la impresora."})
@@ -766,10 +786,10 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
                   "text": f"{nm} está en {'.'.join(pr.ip.split('.')[:3])}.x y el router en {X.seg}.x. "
                           + ("Configúrala en la misma red y segmento que las otras impresoras antes de iniciar con el punto de venta." if X.anterior
                              else "Cambia su IP a una del segmento del router y vuelve a subir el selftest.")})
-        prev_done = bool(pr.con) and (pr.con != "USB" or bool(pr.usbTo)) and (not has_est or bool(pr.estado)) and (not via_q or bool(pr.via))
+        prev_done = bool(pr.con) and (pr.con != "USB" or bool(pr.usbTo)) and (not has_est or bool(pr.estado)) and (not via_q or bool(pr.via)) and (not pto_q or bool(pr.punto))
 
     printers_done = cajas_done and all(
-        p.con is not None and (p.con != "USB" or p.usbTo) and (p.con not in ("RED", "WIFI", "USB") or p.estado) and (p.con not in ("RED", "WIFI") or p.via)
+        p.con is not None and (p.con != "USB" or p.usbTo) and (p.con not in ("RED", "WIFI", "USB") or p.estado) and (p.con not in ("RED", "WIFI") or p.via) and (not p.ptoQ or p.punto)
         for p in printers)
     X.printersDone = printers_done
 
@@ -972,7 +992,7 @@ def _switch_ports(N: List[Dict[str, Any]], X: Obj, a: Dict[str, Any]) -> None:
         X.sw46 = S
     at = -1
     for i, x in enumerate(N):
-        if re.match(r"^(P28|A_(AV|MT|NC|USB|R51|R55))", x.get("id") or ""):
+        if re.match(r"^(P28|A_(AV|MT|NC|USB|R51|R55|PTO))", x.get("id") or ""):
             at = i
     if at < 0:
         fi = next((i for i, x in enumerate(N) if x.get("kind") == "fin"), -1)
