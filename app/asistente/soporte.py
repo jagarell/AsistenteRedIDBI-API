@@ -26,6 +26,7 @@ def leer(textos: List[str]) -> Dict[str, Any]:
     """Impresoras (IP, MAC, fija o automática, conexión, respaldo), sistema de impresiones, lugares de preparación y contraseñas."""
     P: Dict[str, Dict[str, Any]] = {}
     sys_dup = sys_one = prep_ok = False
+    ip_fija = ip_auto = resp_si = resp_no = False  # lo que dice el texto aunque no nombre la impresora como «IMP. X»
     prep_miss: List[str] = []
     creds: List[Dict[str, str]] = []
     for t in textos:
@@ -42,6 +43,14 @@ def leer(textos: List[str]) -> Dict[str, Any]:
             c = credencial(s)
             if c:
                 creds.append(c)
+            if re.search(r"ip\s+(fija|est[aá]tica|reservada)|(fij[oó]|reserv[oó])\s+(la|las)\s+ip", s, re.I) and not re.search(r"sin\s+ip\s+fija|no\s+(tiene|tenía)\s+ip\s+fija", s, re.I):
+                ip_fija = True
+            if re.search(r"ip\s+(autom[aá]tica|din[aá]mica)|\bdhcp\b|ip\s+(repetida|duplicada)|conflicto\s+de\s+ip|sin\s+ip\s+fija|no\s+(tiene|tenía)\s+ip\s+fija", s, re.I):
+                ip_auto = True
+            if re.search(r"sin\s+respaldo|no\s+(tiene|tenía|cuenta con)\s+respaldo|falta(n)?\s+(el\s+)?respaldo", s, re.I):
+                resp_no = True
+            elif re.search(r"respaldo", s, re.I):
+                resp_si = True
             nm = _NAME.search(s)
             if not nm:
                 continue
@@ -74,7 +83,8 @@ def leer(textos: List[str]) -> Dict[str, Any]:
             base = next((q for q in L if q is not p and p["name"].startswith(q["name"].split(" ")[0])), None)
             if base and not base["resp"]:
                 base["resp"] = p["con"] or "WiFi"
-    return {"impresoras": L, "sysDup": sys_dup, "sysOne": sys_one, "prepMiss": prep_miss, "prepOk": prep_ok, "credenciales": creds}
+    return {"impresoras": L, "sysDup": sys_dup, "sysOne": sys_one, "prepMiss": prep_miss, "prepOk": prep_ok, "credenciales": creds,
+            "ipFija": ip_fija, "ipAuto": ip_auto, "respSi": resp_si, "respNo": resp_no}
 
 
 def reglas_sugeridas(motivo: str, hechos: List[str]) -> Dict[str, Any]:
@@ -85,8 +95,10 @@ def reglas_sugeridas(motivo: str, hechos: List[str]) -> Dict[str, Any]:
     main = [p for p in pr if not p["esResp"]]
     R = {
         "S1": "bad" if A["sysDup"] else "ok",
-        "S2": "na" if not pr else ("bad" if (dup or any(p["fija"] is False for p in pr)) else "ok"),
-        "S3": "na" if not main else ("ok" if all(p["resp"] for p in main) else "bad"),
+        "S2": (("bad" if A["ipAuto"] else "ok" if A["ipFija"] else "na") if not pr
+               else ("bad" if (dup or any(p["fija"] is False for p in pr)) else "ok")),
+        "S3": (("bad" if A["respNo"] else "ok" if A["respSi"] else "na") if not main
+               else ("ok" if all(p["resp"] for p in main) else "bad")),
         "S4": "bad" if A["prepMiss"] else ("ok" if (A["prepOk"] or pr) else "na"),
     }
     return {"reglas": R, "lectura": A, "ipRepetidas": dup}
