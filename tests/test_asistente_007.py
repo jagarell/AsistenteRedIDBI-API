@@ -89,3 +89,15 @@ def test_minuta_implementacion_007():
     txt = str(d["blocks"])
     assert "Accesos y contraseñas" in txt and "MOVISTAR_7A21" in txt and "'123'" in txt
     assert "Por parte del cliente:" in txt and "Por parte del equipo técnico de IDBI:" in txt
+
+
+def test_soporte_reglas_sin_impresora_nombrada():
+    """S2/S3 se deciden por el texto aunque no diga «IMP. X» (antes salían «No aplica»)."""
+    r = soporte.reglas_sugeridas("Cambio de router", ["Se dejó IP fija en las impresoras.", "Cada impresora tiene respaldo por USB."])["reglas"]
+    assert r["S2"] == "ok" and r["S3"] == "ok"
+    r = soporte.reglas_sugeridas("Falla", ["Las impresoras quedaron con IP automática.", "Sin respaldo en la barra."])["reglas"]
+    assert r["S2"] == "bad" and r["S3"] == "bad"
+    r = soporte.reglas_sugeridas("Falla", ["Se reinició el equipo."])["reglas"]
+    assert r["S2"] == "na" and r["S3"] == "na"
+    r = soporte.reglas_sugeridas("Falla", ["La impresora no tenía IP fija."])["reglas"]
+    assert r["S2"] == "bad"
