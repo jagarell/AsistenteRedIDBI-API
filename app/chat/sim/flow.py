@@ -55,6 +55,9 @@ PUNTO_OPTS = [{"v": "HAB", "l": "Habilitado (con cable y jack, listo para conect
 PUNTO_ALERT = {"SINJACK": "el punto de red tiene cable pero no jack: colocar el jack antes del inicio.",
                "SINCABLE": "no hay cable de red hasta la impresora: tender el cable y colocar el punto de red.",
                "AVERIADO": "el punto de red está averiado: repararlo o cambiarlo."}
+# Descripción de la foto de una impresora (0.0.19 · C1/C2): la IA deduce sin preguntar si es de otro lugar o si aún no existe.
+AJENA_RE = re.compile(r"otro local|otro negocio|ajen[ao]|no es del local|no pertenece|del t[eé]cnico|de la competencia", re.I)
+IMPL_RE = re.compile(r"por implementar|a[uú]n no (hay|tiene|existe|est[aá]|se instal)|todav[ií]a no (hay|tiene|existe|est[aá]|se instal)|no existe|falta instalar|no hay impresora", re.I)
 PUNTO_TXT = {"SINJACK": "sin jack", "SINCABLE": "sin cable", "AVERIADO": "averiado"}
 PUNTO_TRABAJO = {"SINJACK": "colocar el jack del punto de red", "SINCABLE": "tender el cable y colocar el punto de red",
                  "AVERIADO": "reparar el punto de red"}
@@ -663,7 +666,16 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
         push({"id": "E5a" + K, "b": "E", "kind": "ev", "read": "label", "name": f"la etiqueta de {nm}",
               "text": f"{nm}: sube la foto de la etiqueta de la impresora donde se vean el número de serie (SN) y el modelo.",
               "def": {"data": {"marca": "Epson", "modelo": "TM-T20III", "sn": "X5RF0" + str(12345 + ix)}}})
-        if X.obra:
+        dtxt = " ".join(str((a.get(k + K) or {}).get("desc") or "") for k in ("E5a", "E5b", "E5"))
+        if AJENA_RE.search(dtxt):
+            # C2: equipo que no es del local (impresora de otro lugar): no se cuenta
+            pr.ajena = True
+            prev_done = True
+            continue
+        impl_desc = bool(IMPL_RE.search(dtxt))
+        if impl_desc:
+            tiene = False  # C1: la descripción dice que aún no existe
+        if X.obra and not impl_desc:
             # En obra la impresora empieza «Por implementar» y pasa a «Existente» si la foto o su descripción lo muestran (0.0.19 · C3);
             # solo si no hay ninguna de las dos se pregunta si el cliente ya la tiene.
             e0 = a.get("E5a" + K)
@@ -795,6 +807,7 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
                              else "Cambia su IP a una del segmento del router y vuelve a subir el selftest.")})
         prev_done = bool(pr.con) and (pr.con != "USB" or bool(pr.usbTo)) and (not has_est or bool(pr.estado)) and (not via_q or bool(pr.via)) and (not pto_q or bool(pr.punto))
 
+    printers[:] = [p for p in printers if not p.ajena]  # C2: las impresoras de otro lugar no se cuentan
     printers_done = cajas_done and all(
         p.con is not None and (p.con != "USB" or p.usbTo) and (p.con not in ("RED", "WIFI", "USB") or p.estado) and (p.con not in ("RED", "WIFI") or p.via) and (not p.ptoQ or p.punto)
         for p in printers)
