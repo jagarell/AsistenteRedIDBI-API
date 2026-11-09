@@ -660,12 +660,22 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
         nm = f"IMP. {pr.name}"
         K = "#" + pr.name
         tiene = True
+        push({"id": "E5a" + K, "b": "E", "kind": "ev", "read": "label", "name": f"la etiqueta de {nm}",
+              "text": f"{nm}: sube la foto de la etiqueta de la impresora donde se vean el número de serie (SN) y el modelo.",
+              "def": {"data": {"marca": "Epson", "modelo": "TM-T20III", "sn": "X5RF0" + str(12345 + ix)}}})
         if X.obra:
-            push(ch("P28h" + K, "E", f"¿El cliente ya tiene la impresora de {pr.name}?", YN, {"def": "NO"}))
-            tiene = v("P28h" + K) == "SI"
-            if not a.get("P28h" + K):
+            # En obra la impresora empieza «Por implementar» y pasa a «Existente» si la foto o su descripción lo muestran (0.0.19 · C3);
+            # solo si no hay ninguna de las dos se pregunta si el cliente ya la tiene.
+            e0 = a.get("E5a" + K)
+            if not e0:
                 prev_done = False
                 continue
+            if not (e0.get("v") == "OK" or str(e0.get("desc") or "").strip()):
+                push(ch("P28h" + K, "E", f"¿El cliente ya tiene la impresora de {pr.name}?", YN, {"def": "NO"}))
+                tiene = v("P28h" + K) == "SI"
+                if not a.get("P28h" + K):
+                    prev_done = False
+                    continue
         if not tiene:
             pr.con = "NO"
             pr.estado = None
@@ -674,9 +684,6 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
             pr.sn = ""
             prev_done = True
             continue
-        push({"id": "E5a" + K, "b": "E", "kind": "ev", "read": "label", "name": f"la etiqueta de {nm}",
-              "text": f"{nm}: sube la foto de la etiqueta de la impresora donde se vean el número de serie (SN) y el modelo.",
-              "def": {"data": {"marca": "Epson", "modelo": "TM-T20III", "sn": "X5RF0" + str(12345 + ix)}}})
         e5a = a.get("E5a" + K)
         lab_d = e5a.get("data") if e5a and e5a.get("v") == "OK" else None
         if a.get("E5a" + K):

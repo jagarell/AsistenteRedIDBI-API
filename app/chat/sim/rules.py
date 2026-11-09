@@ -319,7 +319,9 @@ def _evaluate_base(X: Obj, a: Dict[str, Any], ctx: Dict[str, Any]) -> Obj:
             add({"id": "R55 · V04", "tipo": "OBS", "t": f"IMP. {p.name}: fuera del segmento del router",
                  "d": (f"IP {p.ip}; el router y las otras impresoras están en {X.seg}.x. Configurar la impresora en la misma red y segmento que las otras impresoras antes de iniciar con el punto de venta."
                        if X.anterior else f"IP {p.ip}; el router está en {X.seg}.x. Cambiar la IP de la impresora.")})
-    pend = [] if X.simple else [k for k in a if re.match(r"^E", k) and a[k] and a[k].get("v") == "SKIP"]
+    # En obra, la foto saltada de una impresora que el cliente aún no tiene no queda pendiente (0.0.19 · C3).
+    sin_imp = {"E5a#" + p.name for p in X.printers or [] if X.obra and p.con == "NO"}
+    pend = [] if X.simple else [k for k in a if re.match(r"^E", k) and a[k] and a[k].get("v") == "SKIP" and k not in sin_imp]
     if pend:
         add({"id": "EVID", "tipo": "AVISO", "t": f"Evidencias pendientes ({len(pend)})",
              "d": "Sin lectura: " + ", ".join(k.replace("#", " · ") for k in pend) + ". Se completan en la vista previa o desde el chat."})
