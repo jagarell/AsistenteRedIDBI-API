@@ -12,7 +12,7 @@ from app.chat.sim.minuta import build_document
 AMAT = (Path(__file__).parent / "data" / "actualizar_amat_rooftop.txt").read_text(encoding="utf-8")
 OV = {"P01": "Aun no lo tengo", "P01c": "AMAT ROOFTOP", "P08": "EN_OBRA", "P09": "RESTOBAR",
       "P11e": ["Calientes", "Fríos", "Barra", "Panaderia", "Makis"], "P11f": ["Recojo", "Mesa"],
-      "P11g#Recojo": ["Caja"], "P11g#Mesa": ["Zona de Makis", "Barra Principal", "Zona Vip"], "P12": "1"}
+      "P11g#Recojo": ["Caja"], "P11g#Mesa": ["Zona de Makis", "Barra Principal", "Zona Vip"], "P12": "1", "P12x": []}
 
 
 def _minuta_amat(monkeypatch) -> Session:

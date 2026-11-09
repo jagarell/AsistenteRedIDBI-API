@@ -125,7 +125,7 @@ def build_map(X: Obj) -> Dict[str, Any]:
             sub = f"USB a {(p.usbToL or 'otro equipo').lower()}: no válido"
         else:
             sub = None
-        n = N({"type": "printer", "label": "IMP. " + p.name, "ubic": p.name if p.prep else "Caja", "ip": p.ip, "usb": p.con == "USB",
+        n = N({"type": "printer", "label": "IMP. " + p.name, "ubic": p.name if (p.prep or p.extra) else "Caja", "ip": p.ip, "usb": p.con == "USB",
                "ipBad": ip_bad, "sub": sub, "tier": 3,
                "status": "pending" if p.con == "NO" else "broken" if (wrong or p.estado in ("FALLAS", "AVERIADA")) else "ok",
                "power": pw("IMP. " + p.name)})

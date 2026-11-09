@@ -152,7 +152,9 @@ def test_rubro_otro_flujo_completo_sin_autoseleccion():
         else:
             break
     assert "P12e" in vistos and "P12b" in vistos
-    assert r.node["nodeId"] == "P33"     # tomas de energía
+    assert r.node["nodeId"] == "P12x"    # otras impresoras (0.0.19 · C5)
+    r = chat.answer(ChatAnswerRequest(evaluationId="1", state=r.state, answer=json.dumps([])))
+    assert r.validationError is None and r.node["nodeId"] == "P33"     # tomas de energía
     N, X = build(Session(json.loads(r.state)).A, json.loads(r.state)["ctx"])
     assert X.mozosQ is True
 

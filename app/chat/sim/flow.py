@@ -296,17 +296,28 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
     p12e_ready = cajas is not None and (not (cajas > 0 and prep_prn) or bool(a.get("P12e")))
     if p12e_ready and not X.simple:
         push(ch("P12b", "B", "¿En caja saldrán comandas?", YN, {"def": "NO"}))
+    if p12e_ready and not X.simple and a.get("P12b"):
+        # 0.0.19 · C5: una sola lista de impresoras. Además de las de cada área y la caja, se anotan las de otros lugares.
+        push({"id": "P12x", "b": "B", "kind": "multi",
+              "text": "¿Hay otras impresoras en el local además de las de las áreas de preparación y la caja? Márcalas o escribe su lugar con Otro.",
+              "opts": ["Administración", "Oficina", "Bodega", "Recepción"], "sel": [], "def": [], "min": 0,
+              "none": "No, no hay otras impresoras"})
     X.sunmi = bool(rub) and not X.simple and not prep and v("P12b") == "SI"
     if X.sunmi:
         push({"id": "A_SUNMI", "kind": "alert", "tone": "info", "tag": "A_SUNMI",
               "text": "La comanda sale solo en caja. Recomienda un Sunmi con chip (comprobantes, pre-cuentas y comandas). Se cotiza con Desarrollo de Negocios."})
-    b_ready = p12e_ready and (X.simple or bool(a.get("P12b")))
+    b_ready = p12e_ready and (X.simple or (bool(a.get("P12b")) and bool(a.get("P12x"))))
 
     printers: List[Obj] = [Obj(name=p, prep=True, shared=p == X.comparte) for p in prep_prn]
     for i in range(1, X.cajas + 1):
         if i == 1 and X.comparte:
             continue
         printers.append(Obj(name=f"Caja {i}" if X.cajas > 1 else "Caja", prep=False))
+    nombres = {p.name for p in printers}
+    for z in ([] if X.simple else (v("P12x") or [])):
+        if z and z not in nombres:
+            nombres.add(z)
+            printers.append(Obj(name=z, prep=False, extra=True))
     X.printers = printers
     X.seg = "192.168.1"
 
@@ -817,7 +828,7 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
         X.hasPC = any((c.eq == "SI" and not c.temporal) or c.adq in ("LAPTOP", "PC") for c in X.cajasInfo)
         X.hasRasp = any(c.rasp for c in X.cajasInfo)
         comandas = len(prep) > 0 or v("P12b") == "SI"
-        caja_usb = any((not p.prep or p.shared) and p.con == "USB" for p in printers)
+        caja_usb = any(((not p.prep and not p.extra) or p.shared) and p.con == "USB" for p in printers)
         X.posPropio = len(X.cajasInfo) > 0 and all(c.posPropio for c in X.cajasInfo)
         d = None
         if not X.hasPC and not X.hasRasp and not X.posPropio:

@@ -50,3 +50,14 @@ def test_descripcion_aun_no_existe_es_por_implementar_sin_preguntar(monkeypatch)
     p = next(p for p in X.printers if p.name == "Panaderia")
     ids = [n["id"] for n in nodos]
     assert p.con == "NO" and "P28h#Panaderia" not in ids and "E5b#Panaderia" not in ids
+
+
+def test_otras_impresoras_entran_a_la_lista_con_su_lugar(monkeypatch):
+    s = _minuta_amat(monkeypatch)
+    a = copy.deepcopy(s.A)
+    a["P12x"] = {"v": ["Administración", "Calientes"], "label": "Administración, Calientes"}
+    nodos, X = build(a, s.state["ctx"])[:2]
+    nombres = [p.name for p in X.printers]
+    assert "Administración" in nombres and nombres.count("Calientes") == 1  # sin repetir una que ya existe
+    adm = next(p for p in X.printers if p.name == "Administración")
+    assert adm.extra and not adm.prep and "E5a#Administración" in [n["id"] for n in nodos]
