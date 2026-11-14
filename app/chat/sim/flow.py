@@ -312,7 +312,7 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
     for i in range(1, X.cajas + 1):
         if i == 1 and X.comparte:
             continue
-        printers.append(Obj(name=f"Caja {i}" if X.cajas > 1 else "Caja", prep=False))
+        printers.append(Obj(name=f"Caja {i}" if X.cajas > 1 else "Caja", prep=False, cajaIdx=i))
     nombres = {p.name for p in printers}
     for z in ([] if X.simple else (v("P12x") or [])):
         if z and z not in nombres:
@@ -556,121 +556,13 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
     X.libres = num(libres) if X.router and libres is not None and libres != "" else None
     X.routerEtq = ({"marca": X.router.get("marca"), "modelo": X.router.get("modelo"), "sn": X.router.get("sn")} if X.router else None)
 
-    # D · cajas
-    X.cajasInfo = []
-    rub_ = rub
-    if c_block_ready:
-        for i in range(1, X.cajas + 1):
-            k = "#" + str(i)
-            nm = f"Caja {i}" if X.cajas > 1 else "Caja"
-            sfx = f" (caja {i})" if X.cajas > 1 else ""
-            eqn = eq_caja_name(i)
-            if i > 1 and not X.cajasInfo[i - 2].done:
-                break
-            push(ch("P22" + k, "D", f"¿Cuál es el equipo de caja{sfx}?",
-                    [{"v": "SI", "l": "PC o laptop"}, {"v": "TABLET", "l": "Tablet"}, {"v": "SUNMI", "l": "Sunmi"}, {"v": "IMIN", "l": "iMin"},
-                     {"v": "NO", "l": "No tiene"}, {"v": "NO_SE", "l": "No sé"}, {"v": "OTRO", "l": "Otro (escribir)", "otro": True}], {"def": "SI"}))
-            e = v("P22" + k)
-            info = Obj(i=i, nm=nm, eqName=eqn, eq=e, eqL=lab("P22" + k))
-            if e == "SI":
-                if rub_ == "DISCOTECA_BAR":
-                    push(ch("P22g" + k, "D", f"¿El equipo de caja{sfx} se queda en el local de forma permanente?", YN, {"def": "SI"}))
-                if rub_ != "DISCOTECA_BAR" or v("P22g" + k) is not None:
-                    push(ch("P23" + k, "D", f"¿Cómo se conecta el equipo de caja{sfx} a la red?",
-                            [{"v": "CABLE", "l": "Cable de red"}, {"v": "WIFI", "l": "WiFi"}], {"def": "CABLE"}))
-                if v("P23" + k) == "WIFI":
-                    push(ch("P23w" + k, "D", f"¿En el equipo de caja{sfx} está el sistema de impresiones ({sys_imp_n(ctx)})?", YN, {"def": "SI"}))
-                info.sysImp = (v("P23w" + k) != "NO") if v("P23" + k) == "WIFI" else True
-                info.pcCable = v("P23" + k) == "CABLE"
-                info.pcWifi = v("P23" + k) == "WIFI"
-                info.temporal = v("P22g" + k) == "NO"
-                if info.temporal and v("P23" + k) is not None:
-                    push({"id": "A_R60" + k, "kind": "alert", "tone": "warn", "tag": "R60",
-                          "text": f"El equipo de caja{sfx} no se queda en el local. Recomienda un Raspberry para el sistema de impresiones."})
-            if e == "TABLET":
-                push({"id": "A_TAB" + k, "kind": "alert", "tone": "warn", "tag": "TABLET",
-                      "text": f"El equipo de caja{sfx} es una tablet. Es obligatorio un kit Raspberry para el controlador de impresiones y las impresoras deben ser de red."})
-            if e in ("SUNMI", "IMIN") and X.anterior:
-                push({"id": "A_PROV" + k, "kind": "alert", "tone": "warn", "tag": "PROVEEDOR",
-                      "text": f"El equipo de caja{sfx} es un {'Sunmi' if e == 'SUNMI' else 'iMin'}. Si no es de Desarrollo de Negocios, no se puede usar porque pertenece a otro proveedor. Tómalo en cuenta."})
-            solo_caja = (not prep) or (len(prep) == 1 and X.comparte == prep[0])
-            if e in ("SUNMI", "IMIN"):
-                push(ch("P22i" + k, "D", f"¿El {'Sunmi' if e == 'SUNMI' else 'iMin'}{sfx} tiene impresora integrada?",
-                        [{"v": "SI", "l": "Sí, tiene impresora"}, {"v": "NO", "l": "No, solo es pantalla"},
-                         {"v": "FOTO", "l": "No sé el modelo (enviar foto)"}], {"def": "SI"}))
-                info.impInt = v("P22i" + k) != "NO"
-            info.posPropio = e in ("SUNMI", "IMIN") and info.impInt is not False and (X.simple or solo_caja)
-            sin_pc = (not info.posPropio) and (e in ("TABLET", "SUNMI", "IMIN", "NO", "NO_SE", "OTRO") or (bool(info.temporal) and v("P23" + k) is not None))
-            if sin_pc and not X.simple:
-                push(ch("P22a" + k, "D", f"¿El cliente ya cuenta con un Raspberry{sfx}?", YN, {"def": "NO"}))
-                if v("P22a" + k) == "SI":
-                    push(ch("P22c" + k, "D", "¿Cómo se conecta el Raspberry a la red?",
-                            [{"v": "CABLE", "l": "Cable de red"}, {"v": "WIFI", "l": "WiFi"}], {"def": "CABLE"}))
-                adq_r = v("P22b" + k) == "RASPBERRY"
-                if a.get("P22c" + k) or adq_r:
-                    push(ch("P22d" + k, "D",
-                            "¿A qué equipo de red principal irá conectado el Raspberry cuando se implemente?" if adq_r
-                            else "¿A qué equipo de red principal va conectado el Raspberry?",
-                            [{"v": "ROUTER", "l": "Al router"}, {"v": "SWITCH", "l": "A un switch"}, {"v": "REPETIDOR", "l": "A un repetidor"},
-                             {"v": "AP", "l": "A un access point"}, {"v": "OTRO", "l": "Otro (escribir)", "otro": True}], {"def": "ROUTER"}))
-                if a.get("P22d" + k):
-                    if v("P22c" + k) == "CABLE" or adq_r:
-                        push(ch("P22e" + k, "D",
-                                "¿Hay toma de energía y punto de red disponibles para cuando se implemente el Raspberry?" if adq_r
-                                else "¿Hay toma de energía y punto de red disponibles para el Raspberry?",
-                                [{"v": "AMBOS", "l": "Sí, ambos"}, {"v": "ENERGIA", "l": "Solo toma de energía"},
-                                 {"v": "RED", "l": "Solo punto de red"}, {"v": "NINGUNO", "l": "Ninguno"}], {"def": "AMBOS"}))
-                    else:
-                        push(ch("P22e" + k, "D", "¿Hay toma de energía disponible para el Raspberry?", YN, {"def": "SI"}))
-                if v("P22a" + k) == "NO":
-                    push(ch("P22b" + k, "D", "¿Qué adquirirá el cliente para el sistema de impresiones?",
-                            [{"v": "RASPBERRY", "l": "Raspberry"}, {"v": "LAPTOP", "l": "Laptop"}, {"v": "PC", "l": "PC"}], {"def": "RASPBERRY"}))
-                info.rasp = v("P22a" + k) == "SI"
-                info.raspCable = v("P22c" + k) == "CABLE" or v("P22b" + k) == "RASPBERRY"
-                info.raspVia = v("P22d" + k)
-                info.raspViaL = lab("P22d" + k)
-                e2 = v("P22e" + k)
-                info.raspEnergia = None if e2 is None else e2 in ("AMBOS", "ENERGIA", "SI")
-                info.raspPunto = (e2 in ("AMBOS", "RED")) if (info.raspCable and e2 is not None) else None
-                info.adq = v("P22b" + k)
-                info.adqL = lab("P22b" + k)
-            dev_ok = e in ("SI", "TABLET", "SUNMI", "IMIN")
-            if (not sin_pc) or X.simple:
-                sin_done = True
-            elif info.rasp or info.adq == "RASPBERRY":
-                sin_done = bool(a.get("P22e" + k))
-            else:
-                sin_done = bool(info.adq)
-            pc_done = e != "SI" or bool(a.get("P23" + k))
-            if rub_ == "RETAIL" and e is not None and pc_done and sin_done:
-                push({"id": "P22h" + k, "b": "D", "kind": "multi",
-                      "text": f"¿Qué periféricos están conectados al equipo de caja{sfx}?",
-                      "opts": ["Balanza", "Escáner de códigos", "Gaveta", "Impresora de etiquetas", "POS de pago (Niubiz, Izipay…)"],
-                      "sel": [], "none": "Ninguno", "def": ["Escáner de códigos", "Gaveta"], "min": 1})
-            per_done = rub_ != "RETAIL" or bool(a.get("P22h" + k))
-            any_q = e is not None and pc_done and sin_done and per_done and not X.obra and (dev_ok or bool(info.rasp) or info.adq == "RASPBERRY")
-            if any_q:
-                eq_txt = f"{'PC o laptop' if e == 'SI' else info.eqL} de caja{sfx}" if dev_ok else f"Raspberry{sfx}"
-                push({"id": "E7" + k, "b": "D", "kind": "ev", "read": "anydesk", "name": f"el AnyDesk del equipo de caja{sfx}",
-                      "text": (f"Abre AnyDesk en el equipo de caja{sfx} y sube una foto de la pantalla donde se vea el código de AnyDesk." if dev_ok
-                               else f"Abre AnyDesk en el equipo desde donde se accederá al Raspberry{sfx} y sube una foto donde se vea el código de AnyDesk."),
-                      "def": {"data": {"codigo": f"1 23{i} 456 789", "equipo": eq_txt}}})
-            e7 = a.get("E7" + k)
-            info.anydesk = e7.get("data") if e7 and e7.get("v") == "OK" else None
-            info.done = bool(a.get("P22" + k)) and pc_done and sin_done and per_done and (not any_q or bool(a.get("E7" + k)))
-            X.cajasInfo.append(info)
-    cajas_done = c_block_ready and len(X.cajasInfo) == X.cajas and all(c.done for c in X.cajasInfo)
-
-    # E · impresoras
-    prev_done = cajas_done
-
+    # E · impresoras. Desde la 0.0.20 se preguntan por zona: la impresora de cada caja va justo después del equipo de esa caja
+    # (el técnico ya está parado ahí) y las de preparación y otros lugares siguen después de todas las cajas.
     def usb_host_ok() -> bool:
         return any((c.eq == "SI" and not c.temporal) or c.adq in ("LAPTOP", "PC") for c in X.cajasInfo)
 
-    for ix, pr in enumerate(printers):
-        if not prev_done:
-            pr.skip = True
-            continue
+    def proc_printer(ix: int, pr: Obj) -> bool:
+        """Hace las preguntas de una impresora y devuelve True cuando ya quedó completa."""
         nm = f"IMP. {pr.name}"
         K = "#" + pr.name
         tiene = True
@@ -681,8 +573,7 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
         if AJENA_RE.search(dtxt):
             # C2: equipo que no es del local (impresora de otro lugar): no se cuenta
             pr.ajena = True
-            prev_done = True
-            continue
+            return True
         impl_desc = bool(IMPL_RE.search(dtxt))
         if impl_desc:
             tiene = False  # C1: la descripción dice que aún no existe
@@ -691,22 +582,19 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
             # solo si no hay ninguna de las dos se pregunta si el cliente ya la tiene.
             e0 = a.get("E5a" + K)
             if not e0:
-                prev_done = False
-                continue
+                return False
             if not (e0.get("v") == "OK" or str(e0.get("desc") or "").strip()):
                 push(ch("P28h" + K, "E", f"¿El cliente ya tiene la impresora de {pr.name}?", YN, {"def": "NO"}))
                 tiene = v("P28h" + K) == "SI"
                 if not a.get("P28h" + K):
-                    prev_done = False
-                    continue
+                    return False
         if not tiene:
             pr.con = "NO"
             pr.estado = None
             pr.marca = ""
             pr.modelo = ""
             pr.sn = ""
-            prev_done = True
-            continue
+            return True
         e5a = a.get("E5a" + K)
         lab_d = e5a.get("data") if e5a and e5a.get("v") == "OK" else None
         if a.get("E5a" + K):
@@ -816,7 +704,135 @@ def build(a: Dict[str, Any], ctx: Optional[Dict[str, Any]] = None) -> Tuple[List
                   "text": f"{nm} está en {'.'.join(pr.ip.split('.')[:3])}.x y el router en {X.seg}.x. "
                           + ("Configúrala en la misma red y segmento que las otras impresoras antes de iniciar con el punto de venta." if X.anterior
                              else "Cambia su IP a una del segmento del router y vuelve a subir el selftest.")})
-        prev_done = bool(pr.con) and (pr.con != "USB" or bool(pr.usbTo)) and (not has_est or bool(pr.estado)) and (not via_q or bool(pr.via)) and (not pto_q or bool(pr.punto))
+        return bool(pr.con) and (pr.con != "USB" or bool(pr.usbTo)) and (not has_est or bool(pr.estado)) and (not via_q or bool(pr.via)) and (not pto_q or bool(pr.punto))
+
+    # D · cajas
+    X.cajasInfo = []
+    caja_prn_ok: Dict[int, bool] = {}
+    rub_ = rub
+    if c_block_ready:
+        for i in range(1, X.cajas + 1):
+            k = "#" + str(i)
+            nm = f"Caja {i}" if X.cajas > 1 else "Caja"
+            sfx = f" (caja {i})" if X.cajas > 1 else ""
+            eqn = eq_caja_name(i)
+            if i > 1 and not (X.cajasInfo[i - 2].done and caja_prn_ok.get(i - 1, True)):
+                break
+            push(ch("P22" + k, "D", f"¿Cuál es el equipo de caja{sfx}?",
+                    [{"v": "SI", "l": "PC o laptop"}, {"v": "TABLET", "l": "Tablet"}, {"v": "SUNMI", "l": "Sunmi"}, {"v": "IMIN", "l": "iMin"},
+                     {"v": "NO", "l": "No tiene"}, {"v": "NO_SE", "l": "No sé"}, {"v": "OTRO", "l": "Otro (escribir)", "otro": True}], {"def": "SI"}))
+            e = v("P22" + k)
+            info = Obj(i=i, nm=nm, eqName=eqn, eq=e, eqL=lab("P22" + k))
+            if e == "SI":
+                if rub_ == "DISCOTECA_BAR":
+                    push(ch("P22g" + k, "D", f"¿El equipo de caja{sfx} se queda en el local de forma permanente?", YN, {"def": "SI"}))
+                if rub_ != "DISCOTECA_BAR" or v("P22g" + k) is not None:
+                    push(ch("P23" + k, "D", f"¿Cómo se conecta el equipo de caja{sfx} a la red?",
+                            [{"v": "CABLE", "l": "Cable de red"}, {"v": "WIFI", "l": "WiFi"}], {"def": "CABLE"}))
+                if v("P23" + k) == "WIFI":
+                    push(ch("P23w" + k, "D", f"¿En el equipo de caja{sfx} está el sistema de impresiones ({sys_imp_n(ctx)})?", YN, {"def": "SI"}))
+                info.sysImp = (v("P23w" + k) != "NO") if v("P23" + k) == "WIFI" else True
+                info.pcCable = v("P23" + k) == "CABLE"
+                info.pcWifi = v("P23" + k) == "WIFI"
+                info.temporal = v("P22g" + k) == "NO"
+                if info.temporal and v("P23" + k) is not None:
+                    push({"id": "A_R60" + k, "kind": "alert", "tone": "warn", "tag": "R60",
+                          "text": f"El equipo de caja{sfx} no se queda en el local. Recomienda un Raspberry para el sistema de impresiones."})
+            if e == "TABLET":
+                push({"id": "A_TAB" + k, "kind": "alert", "tone": "warn", "tag": "TABLET",
+                      "text": f"El equipo de caja{sfx} es una tablet. Es obligatorio un kit Raspberry para el controlador de impresiones y las impresoras deben ser de red."})
+            if e in ("SUNMI", "IMIN") and X.anterior:
+                push({"id": "A_PROV" + k, "kind": "alert", "tone": "warn", "tag": "PROVEEDOR",
+                      "text": f"El equipo de caja{sfx} es un {'Sunmi' if e == 'SUNMI' else 'iMin'}. Si no es de Desarrollo de Negocios, no se puede usar porque pertenece a otro proveedor. Tómalo en cuenta."})
+            solo_caja = (not prep) or (len(prep) == 1 and X.comparte == prep[0])
+            if e in ("SUNMI", "IMIN"):
+                push(ch("P22i" + k, "D", f"¿El {'Sunmi' if e == 'SUNMI' else 'iMin'}{sfx} tiene impresora integrada?",
+                        [{"v": "SI", "l": "Sí, tiene impresora"}, {"v": "NO", "l": "No, solo es pantalla"},
+                         {"v": "FOTO", "l": "No sé el modelo (enviar foto)"}], {"def": "SI"}))
+                info.impInt = v("P22i" + k) != "NO"
+            info.posPropio = e in ("SUNMI", "IMIN") and info.impInt is not False and (X.simple or solo_caja)
+            sin_pc = (not info.posPropio) and (e in ("TABLET", "SUNMI", "IMIN", "NO", "NO_SE", "OTRO") or (bool(info.temporal) and v("P23" + k) is not None))
+            if sin_pc and not X.simple:
+                push(ch("P22a" + k, "D", f"¿El cliente ya cuenta con un Raspberry{sfx}?", YN, {"def": "NO"}))
+                if v("P22a" + k) == "SI":
+                    push(ch("P22c" + k, "D", "¿Cómo se conecta el Raspberry a la red?",
+                            [{"v": "CABLE", "l": "Cable de red"}, {"v": "WIFI", "l": "WiFi"}], {"def": "CABLE"}))
+                adq_r = v("P22b" + k) == "RASPBERRY"
+                if a.get("P22c" + k) or adq_r:
+                    push(ch("P22d" + k, "D",
+                            "¿A qué equipo de red principal irá conectado el Raspberry cuando se implemente?" if adq_r
+                            else "¿A qué equipo de red principal va conectado el Raspberry?",
+                            [{"v": "ROUTER", "l": "Al router"}, {"v": "SWITCH", "l": "A un switch"}, {"v": "REPETIDOR", "l": "A un repetidor"},
+                             {"v": "AP", "l": "A un access point"}, {"v": "OTRO", "l": "Otro (escribir)", "otro": True}], {"def": "ROUTER"}))
+                if a.get("P22d" + k):
+                    if v("P22c" + k) == "CABLE" or adq_r:
+                        push(ch("P22e" + k, "D",
+                                "¿Hay toma de energía y punto de red disponibles para cuando se implemente el Raspberry?" if adq_r
+                                else "¿Hay toma de energía y punto de red disponibles para el Raspberry?",
+                                [{"v": "AMBOS", "l": "Sí, ambos"}, {"v": "ENERGIA", "l": "Solo toma de energía"},
+                                 {"v": "RED", "l": "Solo punto de red"}, {"v": "NINGUNO", "l": "Ninguno"}], {"def": "AMBOS"}))
+                    else:
+                        push(ch("P22e" + k, "D", "¿Hay toma de energía disponible para el Raspberry?", YN, {"def": "SI"}))
+                if v("P22a" + k) == "NO":
+                    push(ch("P22b" + k, "D", "¿Qué adquirirá el cliente para el sistema de impresiones?",
+                            [{"v": "RASPBERRY", "l": "Raspberry"}, {"v": "LAPTOP", "l": "Laptop"}, {"v": "PC", "l": "PC"}], {"def": "RASPBERRY"}))
+                info.rasp = v("P22a" + k) == "SI"
+                info.raspCable = v("P22c" + k) == "CABLE" or v("P22b" + k) == "RASPBERRY"
+                info.raspVia = v("P22d" + k)
+                info.raspViaL = lab("P22d" + k)
+                e2 = v("P22e" + k)
+                info.raspEnergia = None if e2 is None else e2 in ("AMBOS", "ENERGIA", "SI")
+                info.raspPunto = (e2 in ("AMBOS", "RED")) if (info.raspCable and e2 is not None) else None
+                info.adq = v("P22b" + k)
+                info.adqL = lab("P22b" + k)
+            dev_ok = e in ("SI", "TABLET", "SUNMI", "IMIN")
+            if (not sin_pc) or X.simple:
+                sin_done = True
+            elif info.rasp or info.adq == "RASPBERRY":
+                sin_done = bool(a.get("P22e" + k))
+            else:
+                sin_done = bool(info.adq)
+            pc_done = e != "SI" or bool(a.get("P23" + k))
+            if rub_ == "RETAIL" and e is not None and pc_done and sin_done:
+                push({"id": "P22h" + k, "b": "D", "kind": "multi",
+                      "text": f"¿Qué periféricos están conectados al equipo de caja{sfx}?",
+                      "opts": ["Balanza", "Escáner de códigos", "Gaveta", "Impresora de etiquetas", "POS de pago (Niubiz, Izipay…)"],
+                      "sel": [], "none": "Ninguno", "def": ["Escáner de códigos", "Gaveta"], "min": 1})
+            per_done = rub_ != "RETAIL" or bool(a.get("P22h" + k))
+            any_q = e is not None and pc_done and sin_done and per_done and not X.obra and (dev_ok or bool(info.rasp) or info.adq == "RASPBERRY")
+            if any_q:
+                eq_txt = f"{'PC o laptop' if e == 'SI' else info.eqL} de caja{sfx}" if dev_ok else f"Raspberry{sfx}"
+                push({"id": "E7" + k, "b": "D", "kind": "ev", "read": "anydesk", "name": f"el AnyDesk del equipo de caja{sfx}",
+                      "text": (f"Abre AnyDesk en el equipo de caja{sfx} y sube una foto de la pantalla donde se vea el código de AnyDesk." if dev_ok
+                               else f"Abre AnyDesk en el equipo desde donde se accederá al Raspberry{sfx} y sube una foto donde se vea el código de AnyDesk."),
+                      "def": {"data": {"codigo": f"1 23{i} 456 789", "equipo": eq_txt}}})
+            e7 = a.get("E7" + k)
+            info.anydesk = e7.get("data") if e7 and e7.get("v") == "OK" else None
+            info.done = bool(a.get("P22" + k)) and pc_done and sin_done and per_done and (not any_q or bool(a.get("E7" + k)))
+            X.cajasInfo.append(info)
+            # La impresora de esta caja se pregunta ahora, en el mismo lugar, antes de pasar a la caja siguiente.
+            pc_ = next((p for p in printers if p.cajaIdx == i), None)
+            if pc_ is not None:
+                if info.done:
+                    caja_prn_ok[i] = proc_printer(next(n for n, p in enumerate(printers) if p is pc_), pc_)
+                else:
+                    pc_.skip = True
+                    caja_prn_ok[i] = False
+    for p_ in printers:
+        if p_.cajaIdx is not None and p_.cajaIdx not in caja_prn_ok:
+            p_.skip = True  # la caja todavía no llegó
+    cajas_done = (c_block_ready and len(X.cajasInfo) == X.cajas and all(c.done for c in X.cajasInfo)
+                  and all(caja_prn_ok.get(p.cajaIdx) for p in printers if p.cajaIdx is not None))
+
+    # E · impresoras que no son de una caja (preparación, otros lugares): después de todas las cajas.
+    prev_done = cajas_done
+    for ix, pr in enumerate(printers):
+        if pr.cajaIdx is not None:
+            continue
+        if not prev_done:
+            pr.skip = True
+            continue
+        prev_done = proc_printer(ix, pr)
 
     printers[:] = [p for p in printers if not p.ajena]  # C2: las impresoras de otro lugar no se cuentan
     printers_done = cajas_done and all(
