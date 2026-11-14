@@ -13,6 +13,7 @@ from app.chat.checklist import EvidenceChecklistSeed, build_evidence_checklist
 from app.asistente.router import router as asistente_router
 from app.chat.router import router as chat_router
 from app.vision import PhotoAnalyzeRequest, PhotoAnalyzeResult, analyze_photo
+from app.transcribir import TranscribirRequest, TranscribirResultado, transcribir
 
 app = FastAPI(
     title="IDBI IA Service",
@@ -43,6 +44,12 @@ def geo_reverse(req: GeoReverseRequest):
     """Ubicación GPS del local: dirección, distrito, departamento y coincidencia con el nombre (docs/0.0.7/04-geocodificacion.md)."""
     from app.geo_reverse import reverse
     return reverse(req.lat, req.lng, req.precision_m, req.nombre_local)
+
+
+@app.post("/transcribir", response_model=TranscribirResultado)
+def transcribir_audio(req: TranscribirRequest):
+    """Dictado por voz: audio (base64) -> texto. Ver app/transcribir.py."""
+    return transcribir(req)
 
 
 class AnalyzeRequest(BaseModel):
